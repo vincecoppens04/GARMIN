@@ -570,6 +570,7 @@ def calculate_habit_correlations(supabase: Client, user_id: str) -> list[dict]:
 
         habit_keys = [
             ("alcohol", "Alcohol"),
+            ("party", "Party / Night Out"),
             ("late_meal", "Late Meal (<2h bed)"),
             ("late_caffeine", "Late Caffeine"),
             ("any_caffeine", "Any Caffeine"),

@@ -216,14 +216,23 @@ def log_habits(data: dict):
         "user_id": user_id,
         "date": data.get("date"),
         "alcohol": bool(data.get("alcohol", False)),
+        "party": bool(data.get("party", False)),
         "late_meal": bool(data.get("late_meal", False)),
         "late_caffeine": bool(data.get("late_caffeine", False)),
         "any_caffeine": bool(data.get("any_caffeine", False)),
         "screen_in_bed": bool(data.get("screen_in_bed", False)),
         "travel_day": bool(data.get("travel_day", False)),
     }
-    res = supabase.table("habit_logs").upsert(row).execute()
-    return {"status": "success", "data": res.data}
+    try:
+        res = supabase.table("habit_logs").upsert(row, on_conflict="user_id,date").execute()
+        return {"status": "success", "data": res.data}
+    except Exception as e:
+        # Graceful fallback if party column is not yet migrated in Supabase
+        if "party" in str(e).lower():
+            row.pop("party", None)
+            res = supabase.table("habit_logs").upsert(row, on_conflict="user_id,date").execute()
+            return {"status": "success", "data": res.data, "note": "party column pending"}
+        raise e
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="POST")

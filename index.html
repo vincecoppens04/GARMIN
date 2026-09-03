@@ -1035,6 +1035,10 @@
             <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between text-xs cursor-pointer">
+            <span class="text-zinc-300">Did you party? / Night Out</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Late Meal (&lt;2h before sleep)</span>
             <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
@@ -1141,6 +1145,13 @@
         <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
           <span class="text-xs font-bold text-zinc-200">Alcohol Consumption</span>
           <input type="checkbox" id="habit-alcohol" class="w-5 h-5 accent-augur-green rounded">
+        </label>
+        <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
+          <div>
+            <span class="text-xs font-bold text-zinc-200 block">Did you party? / Night Out</span>
+            <span class="text-[9px] text-zinc-500 font-normal">Late night celebration, clubbing, or festival</span>
+          </div>
+          <input type="checkbox" id="habit-party" class="w-5 h-5 accent-augur-green rounded">
         </label>
         <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
           <span class="text-xs font-bold text-zinc-200">Late Meal (&lt;2-3h before bed)</span>
@@ -2045,39 +2056,46 @@
 
     async function saveHabitLog() {
       const btn = document.getElementById("btn-save-habits");
-      btn.innerText = "Saving to Engine...";
-      btn.disabled = true;
+      if (btn) {
+        btn.innerText = "Saving to Engine...";
+        btn.disabled = true;
+      }
 
       const payload = {
         date: currentTelemetryDate || new Date().toISOString().split('T')[0],
-        alcohol: document.getElementById("habit-alcohol").checked,
-        late_meal: document.getElementById("habit-late-meal").checked,
-        late_caffeine: document.getElementById("habit-late-caffeine").checked,
-        any_caffeine: document.getElementById("habit-any-caffeine").checked,
-        screen_in_bed: document.getElementById("habit-screen").checked,
-        travel_day: document.getElementById("habit-travel").checked,
+        alcohol: document.getElementById("habit-alcohol") ? document.getElementById("habit-alcohol").checked : false,
+        party: document.getElementById("habit-party") ? document.getElementById("habit-party").checked : false,
+        late_meal: document.getElementById("habit-late-meal") ? document.getElementById("habit-late-meal").checked : false,
+        late_caffeine: document.getElementById("habit-late-caffeine") ? document.getElementById("habit-late-caffeine").checked : false,
+        any_caffeine: document.getElementById("habit-any-caffeine") ? document.getElementById("habit-any-caffeine").checked : false,
+        screen_in_bed: document.getElementById("habit-screen") ? document.getElementById("habit-screen").checked : false,
+        travel_day: document.getElementById("habit-travel") ? document.getElementById("habit-travel").checked : false,
       };
 
+      // 1. Immediately record in local storage so banner vanishes instantly
+      const loggedDates = JSON.parse(localStorage.getItem("augur_logged_habits") || "[]");
+      if (!loggedDates.includes(payload.date)) {
+        loggedDates.push(payload.date);
+        localStorage.setItem("augur_logged_habits", JSON.stringify(loggedDates));
+      }
+
+      closeHabitModal();
+      checkHabitBannerStatus(payload.date);
+
+      // 2. Dispatch to cloud backend
       try {
         await fetch(MODAL_HABITS_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-
-        const loggedDates = JSON.parse(localStorage.getItem("augur_logged_habits") || "[]");
-        if (!loggedDates.includes(payload.date)) {
-          loggedDates.push(payload.date);
-          localStorage.setItem("augur_logged_habits", JSON.stringify(loggedDates));
-        }
-
-        closeHabitModal();
-        checkHabitBannerStatus(payload.date);
       } catch (err) {
-        console.error("Failed to save habit log:", err);
+        console.warn("Cloud habit sync warning:", err);
       } finally {
-        btn.innerText = "Save Yesterday's Habits";
-        btn.disabled = false;
+        if (btn) {
+          btn.innerText = "Save Yesterday's Habits";
+          btn.disabled = false;
+        }
       }
     }
 
