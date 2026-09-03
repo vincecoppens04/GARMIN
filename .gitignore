@@ -1,0 +1,28 @@
+# Environment and secrets
+.env
+.env.*
+*.env
+
+# Python
+.venv/
+venv/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local data & dumps
+sample_dumps/
+*.log
+cron.log
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.gemini/
