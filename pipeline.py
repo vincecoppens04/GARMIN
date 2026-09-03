@@ -1129,8 +1129,9 @@ def process_day(
         today_hrv, today_rhr, today_resp, today_spo2, sleep_actual_sec, last_night_target, history
     )
     
+    target_wake_time = baselines.get("target_wake_time", "07:00")
     current_debt, target_tonight_min, bedtime_str, sleep_equation_str = calculate_sleep_ledger_and_bedtime(
-        base_sleep_need, debt_payback_rate, prev_summary, day_strain, target_date
+        base_sleep_need, debt_payback_rate, prev_summary, day_strain, target_date, target_wake_time=target_wake_time
     )
     
     target_strain_min, target_strain_max = calculate_target_strain_window(recovery_score, health_status)

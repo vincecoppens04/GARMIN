@@ -247,4 +247,29 @@ def send_test_notification():
     )
     return {"status": "success", "delivered": success}
 
+@app.function(image=image, secrets=[augur_secret], timeout=30)
+@modal.fastapi_endpoint(method="POST")
+def save_settings(data: dict):
+    """Saves user physiological baselines (Max HR, Sleep Need, Wake Time, etc.) into Supabase user_baselines table"""
+    from pipeline import get_supabase_client
+    supabase, user_id = get_supabase_client()
+    row = {
+        "user_id": user_id,
+        "max_hr": int(data.get("max_hr", 202)),
+        "baseline_sleep_need_min": int(data.get("sleep_need_min", 435)),
+        "target_wake_time": str(data.get("target_wake_time", "07:00")),
+        "vo2_max": float(data.get("vo2_max", 51.5)),
+        "birth_year": int(data.get("birth_year", 2004)),
+    }
+    try:
+        res = supabase.table("user_baselines").upsert(row, on_conflict="user_id").execute()
+        return {"status": "success", "data": res.data}
+    except Exception as e:
+        # Graceful fallback if target_wake_time column has not yet been added in Supabase
+        if "target_wake_time" in str(e).lower():
+            row.pop("target_wake_time", None)
+            res = supabase.table("user_baselines").upsert(row, on_conflict="user_id").execute()
+            return {"status": "success", "data": res.data, "note": "target_wake_time column pending"}
+        raise e
+
 

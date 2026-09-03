@@ -99,14 +99,67 @@
     }
   </style>
 
-  <!-- OneSignal Web SDK v16 Official Integration -->
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <!-- Supabase Client JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-augur-bg text-white antialiased">
 
-  <div id="app" class="w-full max-w-md mx-auto flex flex-col justify-between min-h-screen">
+  <!-- ================================================================= -->
+  <!-- AUTHENTICATION OVERLAY (Minimalist Apple/Whoop Aesthetic) -->
+  <!-- ================================================================= -->
+  <div id="auth-overlay" class="fixed inset-0 z-50 bg-augur-bg flex flex-col justify-center items-center px-6 py-12">
+    <div class="w-full max-w-sm glass-card border border-augur-border rounded-3xl p-7 shadow-2xl space-y-6">
+      <!-- Brand & Header -->
+      <div class="text-center space-y-1.5">
+        <h1 class="text-2xl font-black font-mono tracking-widest text-white uppercase">AUGUR</h1>
+        <p class="text-[9px] font-mono tracking-widest text-zinc-500 uppercase">Sports Science &amp; Recovery Intelligence</p>
+      </div>
+
+      <!-- Error Alert Box -->
+      <div id="login-error" class="hidden p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-mono text-center leading-relaxed"></div>
+
+      <!-- Sign In Form -->
+      <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+        <div class="space-y-1.5">
+          <label class="block text-[10px] font-bold font-mono tracking-wider text-zinc-400 uppercase" for="login-email">Account Email</label>
+          <input 
+            type="email" 
+            id="login-email" 
+            required 
+            autocomplete="username"
+            placeholder="vince@example.com" 
+            class="w-full bg-augur-cardInner border border-augur-border rounded-xl px-3.5 py-3 text-xs text-white placeholder-zinc-600 focus:border-augur-green focus:outline-none transition-colors font-mono"
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="block text-[10px] font-bold font-mono tracking-wider text-zinc-400 uppercase" for="login-password">Password</label>
+          <input 
+            type="password" 
+            id="login-password" 
+            required 
+            autocomplete="current-password"
+            placeholder="••••••••••••" 
+            class="w-full bg-augur-cardInner border border-augur-border rounded-xl px-3.5 py-3 text-xs text-white placeholder-zinc-600 focus:border-augur-green focus:outline-none transition-colors font-mono"
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          id="btn-login" 
+          class="w-full py-3.5 bg-augur-green active:scale-[0.98] text-black text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-augur-green/20"
+        >
+          Sign In
+        </button>
+      </form>
+
+      <div class="text-center pt-2 border-t border-augur-border/40">
+        <span class="text-[9px] font-mono text-zinc-600 tracking-wider uppercase">Encrypted Supabase Authentication</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="w-full max-w-md mx-auto flex flex-col justify-between min-h-screen hidden">
 
     <!-- TOP BAR: Safe-Area Protected Header -->
     <header class="app-header px-5 pb-3 pt-2 flex items-center justify-between border-b border-augur-border/40">
@@ -996,31 +1049,38 @@
           <div class="flex items-center justify-between">
             <span class="text-zinc-400 font-sans">Max Heart Rate (HR_max)</span>
             <div class="flex items-center space-x-1">
-              <input type="number" value="202" class="w-16 bg-augur-card border border-augur-border text-center text-xs rounded-lg py-1 text-white font-bold outline-none" />
+              <input type="number" id="setting-max-hr" value="202" class="w-16 bg-augur-card border border-augur-border text-center text-xs rounded-lg py-1 text-white font-bold outline-none" />
               <span class="text-zinc-500 text-[10px]">bpm</span>
             </div>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-zinc-400 font-sans">RHR Calculation</span>
-            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none">
-              <option>Dynamic 30d Mean</option>
-              <option>Fixed Floor (45 bpm)</option>
+            <select id="setting-rhr-mode" class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none font-sans">
+              <option value="dynamic">Dynamic 30d Mean</option>
+              <option value="fixed">Fixed Floor (45 bpm)</option>
             </select>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-zinc-400 font-sans">Baseline Sleep Need</span>
-            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none">
-              <option>7h 15m (435 min)</option>
-              <option>7h 30m (450 min)</option>
-              <option>8h 00m (480 min)</option>
+            <select id="setting-sleep-need" class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none font-sans">
+              <option value="420">7h 00m (420 min)</option>
+              <option value="435" selected>7h 15m (435 min)</option>
+              <option value="450">7h 30m (450 min)</option>
+              <option value="465">7h 45m (465 min)</option>
+              <option value="480">8h 00m (480 min)</option>
+              <option value="510">8h 30m (510 min)</option>
             </select>
           </div>
           <div class="flex items-center justify-between">
+            <span class="text-zinc-400 font-sans">Target Wake-Up Time</span>
+            <input type="time" id="setting-wake-time" value="07:00" class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none font-mono text-center" />
+          </div>
+          <div class="flex items-center justify-between">
             <span class="text-zinc-400 font-sans">Debt Payback Rate</span>
-            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none">
-              <option>Moderate (33% / night)</option>
-              <option>Conservative (20% / night)</option>
-              <option>Aggressive (50% / night)</option>
+            <select id="setting-debt-rate" class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none font-sans">
+              <option value="0.33" selected>Moderate (33% / night)</option>
+              <option value="0.20">Conservative (20% / night)</option>
+              <option value="0.50">Aggressive (50% / night)</option>
             </select>
           </div>
         </div>
@@ -1032,31 +1092,31 @@
         <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
           <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Alcohol Consumption</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-habit-alcohol" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Did you party? / Night Out</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-habit-party" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Late Meal (&lt;2h before sleep)</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-habit-late-meal" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Caffeine Consumption (Any time)</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-habit-any-caffeine" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Late Caffeine (After 14:00)</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-habit-late-caffeine" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Screen Time in Bed (&gt;15 min)</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-habit-screen" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between text-xs cursor-pointer">
             <span class="text-zinc-300">Travel Day / Jetlag</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-habit-travel" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
         </div>
       </div>
@@ -1072,19 +1132,19 @@
         <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2 text-xs">
           <label class="flex items-center justify-between cursor-pointer">
             <span class="text-zinc-300">Morning Recovery Summary (08:00)</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-notif-morning" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between cursor-pointer">
             <span class="text-zinc-300">Habit Journal Reminder (07:30)</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-notif-habit" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between cursor-pointer">
             <span class="text-zinc-300">Health Anomaly Immediate Alert</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-notif-anomaly" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
           <label class="flex items-center justify-between cursor-pointer">
             <span class="text-zinc-300">Evening Bedtime Guidance (21:00)</span>
-            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+            <input type="checkbox" id="toggle-notif-bedtime" checked class="w-4 h-4 accent-augur-green rounded">
           </label>
         </div>
       </div>
@@ -1093,31 +1153,44 @@
       <div class="space-y-2.5">
         <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">System & Diagnostics</span>
         <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-3 font-mono text-xs">
-          <div class="flex justify-between">
-            <span class="text-zinc-400">HRV 30d Baseline</span>
-            <span class="text-white font-bold" id="diag-hrv-base">87.3 ms (±13.2)</span>
+          <div class="flex justify-between items-center text-zinc-400">
+            <span class="font-sans">Account</span>
+            <span class="text-white font-bold font-mono" id="settings-account-email">vincecoppens04</span>
           </div>
-          <div class="flex justify-between">
-            <span class="text-zinc-400">RHR 30d Baseline</span>
-            <span class="text-white font-bold" id="diag-rhr-base">44.9 bpm (±2.0)</span>
+          <div class="flex justify-between items-center text-zinc-400">
+            <span class="font-sans">HRV Baseline (30d)</span>
+            <span id="settings-hrv-base" class="text-augur-green font-bold font-mono">87 ms (±11)</span>
           </div>
-          <div class="flex justify-between">
-            <span class="text-zinc-400">VO2 Max (Precise)</span>
-            <span class="text-augur-cyan font-bold" id="diag-vo2-base">51.5 ml/kg/min</span>
+          <div class="flex justify-between items-center text-zinc-400">
+            <span class="font-sans">RHR Floor (30d)</span>
+            <span id="settings-rhr-base" class="text-augur-green font-bold font-mono">45 bpm (±3)</span>
           </div>
-          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-augur-border/40">
-            <button onclick="triggerModalSync()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[10px] font-bold text-zinc-300 hover:text-white uppercase">
+          <div class="flex justify-between items-center text-zinc-400">
+            <span class="font-sans">VO2 Max / Cardiorespiratory</span>
+            <span class="text-augur-cyan font-bold font-mono">51.5 ml/kg/min</span>
+          </div>
+          <div class="flex justify-between items-center text-zinc-400">
+            <span class="font-sans">Anomaly Engine</span>
+            <span class="text-augur-green font-bold">ACTIVE (±1.5σ)</span>
+          </div>
+          <div class="pt-2 border-t border-augur-border flex space-x-2">
+            <button onclick="recalculateBaselines()" class="flex-1 py-2 bg-augur-card hover:bg-zinc-800 text-zinc-300 rounded-xl text-center font-bold tracking-wide transition-colors">
               Recalculate
             </button>
-            <button onclick="exportDataJSON()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[10px] font-bold text-augur-cyan hover:text-white uppercase">
+            <button onclick="exportDataJSON()" class="flex-1 py-2 bg-augur-card hover:bg-zinc-800 text-zinc-300 rounded-xl text-center font-bold tracking-wide transition-colors">
               Export JSON
+            </button>
+          </div>
+          <div class="pt-2 border-t border-augur-border">
+            <button onclick="handleSignOut()" class="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-center font-bold tracking-wide transition-colors">
+              Sign Out
             </button>
           </div>
         </div>
       </div>
 
-      <button onclick="closeSettingsModal()" class="w-full py-3.5 bg-augur-green active:scale-[0.98] text-black text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-augur-green/20">
-        Done
+      <button onclick="saveSettings()" id="btn-save-settings" class="w-full py-3.5 bg-augur-green active:scale-[0.98] text-black text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-augur-green/20">
+        Save & Apply Settings
       </button>
 
     </div>
@@ -1193,8 +1266,132 @@
     const MODAL_SYNC_URL = "https://vincecoppens04--augur-backend-sync-now.modal.run";
     const MODAL_HABITS_URL = "https://vincecoppens04--augur-backend-log-habits.modal.run";
     const MODAL_TEST_NOTIF_URL = "https://vincecoppens04--augur-backend-send-test-notification.modal.run";
+    const MODAL_SETTINGS_URL = "https://vincecoppens04--augur-backend-save-settings.modal.run";
+
+    const DEFAULT_SETTINGS = {
+      max_hr: 202,
+      rhr_mode: "dynamic",
+      sleep_need_min: 435,
+      target_wake_time: "07:00",
+      debt_payback_pct: 0.33,
+      habits: { alcohol: true, party: true, late_meal: true, any_caffeine: true, late_caffeine: true, screen: true, travel: true },
+      notifications: { morning: true, habit: true, anomaly: true, bedtime: true }
+    };
+    let appSettings = { ...DEFAULT_SETTINGS };
+
+    function loadSettings() {
+      try {
+        const saved = localStorage.getItem("augur_settings");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          appSettings = { ...DEFAULT_SETTINGS, ...parsed };
+          if (parsed.habits) appSettings.habits = { ...DEFAULT_SETTINGS.habits, ...parsed.habits };
+          if (parsed.notifications) appSettings.notifications = { ...DEFAULT_SETTINGS.notifications, ...parsed.notifications };
+        }
+      } catch (e) {
+        console.warn("Failed to load settings:", e);
+      }
+    }
+    loadSettings();
 
     const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+    // ---------------------------------------------------------------
+    // SUPABASE AUTHENTICATION CONTROLLER
+    // ---------------------------------------------------------------
+    let currentUser = null;
+
+    async function initAuth() {
+      if (!supabaseClient) {
+        console.warn("Supabase client not loaded, opening app directly");
+        onAuthenticated({ email: "vincecoppens04" });
+        return;
+      }
+
+      try {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (session && session.user) {
+          onAuthenticated(session.user);
+        } else {
+          showLoginOverlay();
+        }
+      } catch (err) {
+        console.warn("Session retrieval exception:", err);
+        showLoginOverlay();
+      }
+
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_OUT") {
+          showLoginOverlay();
+        } else if (event === "SIGNED_IN" && session && session.user) {
+          onAuthenticated(session.user);
+        }
+      });
+    }
+
+    function onAuthenticated(user) {
+      currentUser = user;
+      const overlay = document.getElementById("auth-overlay");
+      const app = document.getElementById("app");
+      if (overlay) overlay.classList.add("hidden");
+      if (app) app.classList.remove("hidden");
+
+      const emailEl = document.getElementById("settings-account-email");
+      if (emailEl && user.email) {
+        emailEl.innerText = user.email;
+      }
+
+      loadTelemetry();
+    }
+
+    function showLoginOverlay() {
+      currentUser = null;
+      const overlay = document.getElementById("auth-overlay");
+      const app = document.getElementById("app");
+      if (overlay) overlay.classList.remove("hidden");
+      if (app) app.classList.add("hidden");
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value;
+      const errEl = document.getElementById("login-error");
+      const btn = document.getElementById("btn-login");
+
+      if (errEl) errEl.classList.add("hidden");
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Authenticating...";
+      }
+
+      try {
+        if (!supabaseClient) throw new Error("Supabase auth engine not initialized");
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        if (data && data.user) {
+          onAuthenticated(data.user);
+        }
+      } catch (err) {
+        if (errEl) {
+          errEl.innerText = err.message || "Invalid authentication credentials";
+          errEl.classList.remove("hidden");
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = "Sign In";
+        }
+      }
+    }
+
+    async function handleSignOut() {
+      closeSettingsModal();
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+      }
+      showLoginOverlay();
+    }
 
     const CIRCUMFERENCE = 452.39;
     let currentTelemetryDate = null;
@@ -1325,26 +1522,6 @@
       // -------------------------------------------------------------
       // TAB 2: SLEEP & HEALTH
       // -------------------------------------------------------------
-      const tab2Target = document.getElementById("tab2-sleep-target");
-      if (tab2Target) tab2Target.innerText = `${needH}h ${needM.toString().padStart(2, '0')}m`;
-
-      const totalBedtimeMin = sleepNeedMin + 15;
-      let bedtimeMinuteOfDay = (7 * 60) - totalBedtimeMin;
-      if (bedtimeMinuteOfDay < 0) bedtimeMinuteOfDay += 1440;
-      const bH = Math.floor(bedtimeMinuteOfDay / 60);
-      const bM = bedtimeMinuteOfDay % 60;
-      const tab2Clock = document.getElementById("tab2-bedtime-clock");
-      if (tab2Clock) tab2Clock.innerText = `${bH.toString().padStart(2, '0')}:${bM.toString().padStart(2, '0')}`;
-
-      const strainDemand = Math.max(0, Math.round(strain * 4.5));
-      const debtPayback = Math.max(0, Math.round(debtMin * 0.33));
-      const eqBase = document.getElementById("tab2-eq-base");
-      const eqStrain = document.getElementById("tab2-eq-strain");
-      const eqDebt = document.getElementById("tab2-eq-debt");
-      if (eqBase) eqBase.innerText = "7h 15m (Base)";
-      if (eqStrain) eqStrain.innerText = `${strainDemand}m (Strain)`;
-      if (eqDebt) eqDebt.innerText = `${debtPayback}m (Debt)`;
-
       const tab2SleepDur = document.getElementById("tab2-sleep-dur");
       if (tab2SleepDur) tab2SleepDur.innerText = `${actH}h ${actM.toString().padStart(2, '0')}m`;
 
@@ -1469,6 +1646,7 @@
       if (diagVo2) diagVo2.innerText = (row.user_baselines && row.user_baselines.vo2_max) ? `${row.user_baselines.vo2_max} ml/kg/min` : "51.5 ml/kg/min";
 
       checkHabitBannerStatus(row.date);
+      applySettings();
       document.getElementById("last-sync-time").innerText = "SYNCED";
     }
 
@@ -1516,46 +1694,16 @@
       const countEl = document.getElementById("tab3-feed-count");
       if (!container) return;
 
-      const rawActs = (activities && activities.length > 0) ? activities : [
-        {
-          activity_type: "running",
-          name: "Nice Running",
-          date: "Yesterday",
-          duration_sec: 4228,
-          distance_m: 12020,
-          avg_hr: 155,
-          workout_strain: 17.6,
-          garmin_load: 138.2,
-          aerobic_te: 3.7
-        },
-        {
-          activity_type: "cycling",
-          name: "Nice Cycling",
-          date: "Aug 30",
-          duration_sec: 13450,
-          distance_m: 59890,
-          avg_hr: 141,
-          workout_strain: 20.7,
-          garmin_load: 306.0,
-          aerobic_te: 4.6
-        },
-        {
-          activity_type: "open_water_swimming",
-          name: "Maritime Alps Swimming",
-          date: "Aug 29",
-          duration_sec: 1840,
-          distance_m: 1020,
-          avg_hr: 129,
-          workout_strain: 7.5,
-          garmin_load: 62.9,
-          aerobic_te: 2.4
-        }
-      ];
-
-      // Strictly limit to the last 5 activities
-      const acts = rawActs.slice(0, 5);
-
+      const acts = (activities && activities.length > 0) ? activities.slice(0, 5) : [];
       if (countEl) countEl.innerText = `${acts.length} Recent Sessions`;
+
+      if (acts.length === 0) {
+        container.innerHTML = `
+          <div class="p-4 rounded-2xl bg-augur-cardInner border border-augur-border text-center text-xs text-zinc-500 font-mono">
+            No structured workouts logged for this period
+          </div>`;
+        return;
+      }
 
       container.innerHTML = acts.map(act => {
         const type = act.activity_type || "workout";
@@ -1827,118 +1975,183 @@
       renderAnalyticsGraphs(dataSlice, days);
     }
 
-    function switchAnalyticsRange(days) {
-      setGlobalTimeRange(days);
+    function drawSvgLine(pathId, values, minVal, maxVal, width = 320, height = 80, padY = 10) {
+      const path = document.getElementById(pathId);
+      if (!path || !values || !values.length) return;
+      const n = values.length;
+      const range = (maxVal - minVal) || 1;
+      const usableH = height - (padY * 2);
+      const pts = values.map((val, i) => {
+        const x = (i / Math.max(1, n - 1)) * width;
+        const clamped = Math.min(maxVal, Math.max(minVal, val));
+        const y = (height - padY) - ((clamped - minVal) / range) * usableH;
+        return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+      path.setAttribute("d", pts);
+    }
+
+    function drawSvgBars(groupId, values, maxVal, colorFn, width = 320, height = 80) {
+      const group = document.getElementById(groupId);
+      if (!group || !values || !values.length) return;
+      const n = values.length;
+      const barWidth = Math.max(2, Math.min(28, (width / n) - 2));
+      const usableH = height - 10;
+      group.innerHTML = values.map((val, i) => {
+        const x = (i / n) * width + 2;
+        const h = Math.min(usableH, Math.max(3, (val / maxVal) * usableH));
+        const y = (height - 5) - h;
+        const color = typeof colorFn === 'function' ? colorFn(val, i) : colorFn;
+        return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}" />`;
+      }).join('');
     }
 
     function renderAnalyticsGraphs(records, days) {
-      const dCount = days || activeTimeRange;
+      const dCount = days || activeTimeRange || 7;
       const data = records || getHistoryForRange(dCount);
       const chronological = [...data].reverse();
-
       const n = chronological.length;
+      if (!n) return;
+
       const hrvVals = chronological.map(d => d.hrv_rmssd || 88);
       const rhrVals = chronological.map(d => d.rhr || 45);
-      const strainVals = chronological.map(d => d.day_strain || 12.5);
+      const strainVals = chronological.map(d => Number(d.day_strain) || 12.5);
       const sleepVals = chronological.map(d => (d.sleep_actual_sec || 24300) / 3600);
       const respVals = chronological.map(d => d.resp_rate || 12.0);
       const spo2Vals = chronological.map(d => d.spo2 || 97.0);
 
-      // 1. HRV Graph
+      // 1. HRV
       const avgHrv = Math.round(hrvVals.reduce((a, b) => a + b, 0) / n);
       const latestHrv = hrvVals[hrvVals.length - 1];
       const hrvReadout = document.getElementById("analytics-hrv-readout");
       if (hrvReadout) hrvReadout.innerText = `Latest: ${latestHrv} ms | ${dCount}d Mean: ${avgHrv} ms`;
+      drawSvgLine("hrv-trend-path", hrvVals, 50, 120);
 
-      const hrvPath = document.getElementById("hrv-trend-path");
-      if (hrvPath) {
-        const minH = 50, maxH = 120;
-        const pts = hrvVals.map((val, i) => {
-          const x = (i / Math.max(1, n - 1)) * 320;
-          const y = 80 - ((val - minH) / (maxH - minH)) * 60;
-          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
-        }).join(' ');
-        hrvPath.setAttribute("d", pts);
-      }
-
-      // 2. RHR Graph
+      // 2. RHR
       const floorRhr = Math.min(...rhrVals);
       const latestRhr = rhrVals[rhrVals.length - 1];
       const rhrReadout = document.getElementById("analytics-rhr-readout");
       if (rhrReadout) rhrReadout.innerText = `Latest: ${latestRhr} bpm | ${dCount}d Floor: ${floorRhr} bpm`;
-
-      const rhrPath = document.getElementById("rhr-trend-path");
-      if (rhrPath) {
-        const minR = 38, maxR = 56;
-        const pts = rhrVals.map((val, i) => {
-          const x = (i / Math.max(1, n - 1)) * 320;
-          const y = 80 - ((val - minR) / (maxR - minR)) * 60;
-          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
-        }).join(' ');
-        rhrPath.setAttribute("d", pts);
-      }
+      drawSvgLine("rhr-trend-path", rhrVals, 38, 56);
 
       // 3. Sleep Grouped Bars
       const avgSleep = sleepVals.reduce((a, b) => a + b, 0) / n;
       const sH = Math.floor(avgSleep);
       const sM = Math.round((avgSleep - sH) * 60);
+      const baseNeedMin = appSettings.sleep_need_min || 435;
+      const baseNeedStr = `${Math.floor(baseNeedMin/60)}h ${baseNeedMin%60}m`;
       const sleepReadout = document.getElementById("analytics-sleep-readout");
-      if (sleepReadout) sleepReadout.innerText = `Avg: ${sH}h ${sM}m / Need: 7h 15m`;
-
-      const sleepGroup = document.getElementById("sleep-bars-group");
-      if (sleepGroup) {
-        const barWidth = Math.max(2, Math.min(28, (310 / n) - 2));
-        sleepGroup.innerHTML = sleepVals.map((dur, i) => {
-          const x = (i / n) * 320 + 2;
-          const h = Math.min(70, Math.max(4, (dur / 9.5) * 70));
-          const y = 75 - h;
-          const isDeficit = dur < 7.25;
-          const fill = isDeficit ? "#FFB800" : "#00F0FF";
-          return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}" opacity="0.85" />`;
-        }).join('');
-      }
+      if (sleepReadout) sleepReadout.innerText = `Avg: ${sH}h ${sM}m / Need: ${baseNeedStr}`;
+      drawSvgBars("sleep-bars-group", sleepVals, 9.5, val => val < (baseNeedMin / 60) ? "#FFB800" : "#00F0FF");
 
       // 4. Daily Strain Bars
       const avgStrain = (strainVals.reduce((a, b) => a + b, 0) / n).toFixed(1);
       const strainReadout = document.getElementById("analytics-strain-readout");
       if (strainReadout) strainReadout.innerText = `${dCount}d Avg Strain: ${avgStrain} / 21.0`;
-
-      const strainGroup = document.getElementById("strain-bars-group");
-      if (strainGroup) {
-        const barWidth = Math.max(2, Math.min(28, (310 / n) - 2));
-        strainGroup.innerHTML = strainVals.map((st, i) => {
-          const x = (i / n) * 320 + 2;
-          const h = Math.min(70, Math.max(3, (st / 21.0) * 70));
-          const y = 75 - h;
-          const color = st > 16.0 ? '#FF3B30' : (st > 12.0 ? '#00E599' : '#3B82F6');
-          return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}" />`;
-        }).join('');
-      }
+      drawSvgBars("strain-bars-group", strainVals, 21.0, val => val > 16.0 ? '#FF3B30' : (val > 12.0 ? '#00E599' : '#3B82F6'));
 
       // 5. Respiration & SpO2
-      const respPath = document.getElementById("resp-trend-path");
-      const spo2Path = document.getElementById("spo2-trend-path");
-      if (respPath && spo2Path) {
-        const ptsResp = respVals.map((v, i) => {
-          const x = (i / Math.max(1, n - 1)) * 320;
-          const y = 80 - ((v - 10) / 6) * 60;
-          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
-        }).join(' ');
-        respPath.setAttribute("d", ptsResp);
-
-        const ptsSpo2 = spo2Vals.map((v, i) => {
-          const x = (i / Math.max(1, n - 1)) * 320;
-          const y = 80 - ((v - 92) / 8) * 60;
-          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
-        }).join(' ');
-        spo2Path.setAttribute("d", ptsSpo2);
-      }
+      drawSvgLine("resp-trend-path", respVals, 10, 16);
+      drawSvgLine("spo2-trend-path", spo2Vals, 92, 100);
+      const rLatest = respVals[respVals.length - 1] || 12.1;
+      const sLatest = spo2Vals[spo2Vals.length - 1] || 97;
+      const vReadout = document.getElementById("analytics-vitals-readout");
+      if (vReadout) vReadout.innerText = `RPM: ${rLatest.toFixed(1)} br/min | SpO2: ${Math.round(sLatest)}%`;
     }
 
     // ---------------------------------------------------------------
-    // SETTINGS MODAL & DATA EXPORT
+    // SETTINGS ENGINE & METRIC RECALCULATION
     // ---------------------------------------------------------------
+    function applySettings() {
+      if (!cachedTelemetry) return;
+      const row = cachedTelemetry;
+      const baseMin = appSettings.sleep_need_min || 435;
+      const baseH = Math.floor(baseMin / 60);
+      const baseM = baseMin % 60;
+      const baseStr = `${baseH}h ${baseM.toString().padStart(2, '0')}m`;
+
+      const strain = row.day_strain != null ? Number(row.day_strain) : 0;
+      const debtMin = row.sleep_debt_min != null ? row.sleep_debt_min : 0;
+      const actualSec = row.sleep_actual_sec || 24300;
+      const actH = Math.floor(actualSec / 3600);
+      const actM = Math.floor((actualSec % 3600) / 60);
+
+      // Recalculate Tonight's Sleep Need Equation
+      const strainDemand = Math.max(0, Math.round(strain * 4.5));
+      const debtPayback = Math.max(0, Math.round(debtMin * (appSettings.debt_payback_pct || 0.33)));
+      const totalNeedMin = baseMin + strainDemand + debtPayback;
+      const needH = Math.floor(totalNeedMin / 60);
+      const needM = totalNeedMin % 60;
+
+      // Update Tab 2
+      const tab2Target = document.getElementById("tab2-sleep-target");
+      if (tab2Target) tab2Target.innerText = `${needH}h ${needM.toString().padStart(2, '0')}m`;
+
+      const eqBase = document.getElementById("tab2-eq-base");
+      if (eqBase) eqBase.innerText = `${baseH}h ${baseM.toString().padStart(2, '0')}m (Base)`;
+
+      const eqStrain = document.getElementById("tab2-eq-strain");
+      if (eqStrain) eqStrain.innerText = `${strainDemand}m (Strain)`;
+
+      const eqDebt = document.getElementById("tab2-eq-debt");
+      if (eqDebt) eqDebt.innerText = `${debtPayback}m (Debt)`;
+
+      const tab2BedtimeClock = document.getElementById("tab2-bedtime-clock");
+      if (tab2BedtimeClock) {
+        const [wakeH, wakeM] = (appSettings.target_wake_time || "07:00").split(":").map(Number);
+        const wakeMinuteOfDay = (wakeH * 60) + wakeM;
+        const totalBedtimeMin = totalNeedMin + 15;
+        let bedtimeMinuteOfDay = wakeMinuteOfDay - totalBedtimeMin;
+        while (bedtimeMinuteOfDay < 0) bedtimeMinuteOfDay += 1440;
+        bedtimeMinuteOfDay = bedtimeMinuteOfDay % 1440;
+        const bH = Math.floor(bedtimeMinuteOfDay / 60);
+        const bM = bedtimeMinuteOfDay % 60;
+        tab2BedtimeClock.innerText = `${bH.toString().padStart(2, '0')}:${bM.toString().padStart(2, '0')}`;
+      }
+
+      // Update Tab 1
+      const sleepActualVal = document.getElementById("sleep-actual-val");
+      const sleepNeedVal = document.getElementById("sleep-need-val");
+      if (sleepActualVal) sleepActualVal.innerText = `${actH}h ${actM.toString().padStart(2, '0')}m`;
+      if (sleepNeedVal) sleepNeedVal.innerText = baseStr;
+
+      // Update Tab 5 Sleep Need Readout
+      const sleepReadout = document.getElementById("analytics-sleep-readout");
+      if (sleepReadout) {
+        const dCount = activeAnalyticsRange || 7;
+        sleepReadout.innerText = `Need: ${baseStr} | Window: ${dCount}d`;
+      }
+    }
+
+    function populateSettingsUI() {
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = Boolean(val); };
+
+      setVal("setting-max-hr", appSettings.max_hr);
+      setVal("setting-rhr-mode", appSettings.rhr_mode);
+      setVal("setting-sleep-need", appSettings.sleep_need_min);
+      setVal("setting-wake-time", appSettings.target_wake_time || "07:00");
+      setVal("setting-debt-rate", appSettings.debt_payback_pct);
+
+      if (appSettings.habits) {
+        setChk("toggle-habit-alcohol", appSettings.habits.alcohol);
+        setChk("toggle-habit-party", appSettings.habits.party);
+        setChk("toggle-habit-late-meal", appSettings.habits.late_meal);
+        setChk("toggle-habit-any-caffeine", appSettings.habits.any_caffeine);
+        setChk("toggle-habit-late-caffeine", appSettings.habits.late_caffeine);
+        setChk("toggle-habit-screen", appSettings.habits.screen);
+        setChk("toggle-habit-travel", appSettings.habits.travel);
+      }
+
+      if (appSettings.notifications) {
+        setChk("toggle-notif-morning", appSettings.notifications.morning);
+        setChk("toggle-notif-habit", appSettings.notifications.habit);
+        setChk("toggle-notif-anomaly", appSettings.notifications.anomaly);
+        setChk("toggle-notif-bedtime", appSettings.notifications.bedtime);
+      }
+    }
+
     function openSettingsModal() {
+      populateSettingsUI();
       const modal = document.getElementById("settings-modal");
       if (modal) modal.classList.remove("hidden");
     }
@@ -1946,6 +2159,58 @@
     function closeSettingsModal() {
       const modal = document.getElementById("settings-modal");
       if (modal) modal.classList.add("hidden");
+    }
+
+    async function saveSettings() {
+      const getVal = (id, def) => { const el = document.getElementById(id); return el ? el.value : def; };
+      const getChk = (id, def) => { const el = document.getElementById(id); return el ? el.checked : def; };
+
+      appSettings.max_hr = Number(getVal("setting-max-hr", 202));
+      appSettings.rhr_mode = getVal("setting-rhr-mode", "dynamic");
+      appSettings.sleep_need_min = Number(getVal("setting-sleep-need", 435));
+      appSettings.target_wake_time = getVal("setting-wake-time", "07:00");
+      appSettings.debt_payback_pct = Number(getVal("setting-debt-rate", 0.33));
+
+      appSettings.habits = {
+        alcohol: getChk("toggle-habit-alcohol", true),
+        party: getChk("toggle-habit-party", true),
+        late_meal: getChk("toggle-habit-late-meal", true),
+        any_caffeine: getChk("toggle-habit-any-caffeine", true),
+        late_caffeine: getChk("toggle-habit-late-caffeine", true),
+        screen: getChk("toggle-habit-screen", true),
+        travel: getChk("toggle-habit-travel", true),
+      };
+
+      appSettings.notifications = {
+        morning: getChk("toggle-notif-morning", true),
+        habit: getChk("toggle-notif-habit", true),
+        anomaly: getChk("toggle-notif-anomaly", true),
+        bedtime: getChk("toggle-notif-bedtime", true),
+      };
+
+      // 1. Immediately persist locally
+      localStorage.setItem("augur_settings", JSON.stringify(appSettings));
+
+      // 2. Close modal
+      closeSettingsModal();
+
+      // 3. Immediately apply updated settings to UI
+      applySettings();
+
+      // 4. Dispatch to backend in background
+      try {
+        await fetch(MODAL_SETTINGS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            max_hr: appSettings.max_hr,
+            sleep_need_min: appSettings.sleep_need_min,
+            target_wake_time: appSettings.target_wake_time,
+          })
+        });
+      } catch (err) {
+        console.warn("Backend settings sync warning:", err);
+      }
     }
 
     function exportDataJSON() {
@@ -2182,19 +2447,21 @@
       tabs.forEach(t => {
         const section = document.getElementById(`tab-${t}`);
         const btn = document.getElementById(`nav-${t}`);
-        if (section) section.classList.toggle("hidden", t !== tabName);
+        const isCurrent = t === tabName;
+        if (section) section.classList.toggle("hidden", !isCurrent);
         if (btn) {
-          const isCurrent = t === tabName;
-          btn.className = isCurrent 
-            ? "flex flex-col items-center text-augur-green transition-colors" 
-            : "flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors";
+          btn.classList.toggle("text-augur-green", isCurrent);
+          btn.classList.toggle("text-zinc-500", !isCurrent);
           const dot = btn.querySelector("span:last-child");
-          if (dot) dot.className = `w-1 h-1 rounded-full ${isCurrent ? 'bg-augur-green' : 'bg-transparent'} mt-0.5`;
+          if (dot) {
+            dot.classList.toggle("bg-augur-green", isCurrent);
+            dot.classList.toggle("bg-transparent", !isCurrent);
+          }
         }
       });
     }
 
-    document.addEventListener("DOMContentLoaded", loadTelemetry);
+    document.addEventListener("DOMContentLoaded", initAuth);
   </script>
 
 </body>
