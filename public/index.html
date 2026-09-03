@@ -82,7 +82,8 @@
     }
 
     nav.bottom-nav {
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      padding-top: 6px;
+      padding-bottom: max(6px, calc(env(safe-area-inset-bottom) - 16px));
     }
 
     /* Recovery SVG Circle smooth transition */
@@ -134,7 +135,7 @@
     <!-- ================================================================= -->
     <!-- TAB 1: TODAY (COMMAND CENTER) -->
     <!-- ================================================================= -->
-    <main id="tab-today" class="flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
+    <main id="tab-today" class="flex-1 px-4 py-3 pb-16 space-y-3.5 overflow-y-auto">
 
       <!-- 1. MORNING RECOVERY HERO CARD -->
       <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-2xl relative flex flex-col items-center">
@@ -334,7 +335,7 @@
     <!-- ================================================================= -->
     <!-- TAB 2: SLEEP & HEALTH (VITALS & READINESS) -->
     <!-- ================================================================= -->
-    <main id="tab-sleep" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
+    <main id="tab-sleep" class="hidden flex-1 px-4 py-3 pb-16 space-y-3.5 overflow-y-auto">
 
       <!-- Header Banner -->
       <div class="flex items-center justify-between px-1">
@@ -533,7 +534,7 @@
     <!-- ================================================================= -->
     <!-- TAB 3: ACTIVITIES & STRAIN (EXERTION & WORKOUTS) -->
     <!-- ================================================================= -->
-    <main id="tab-strain" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
+    <main id="tab-strain" class="hidden flex-1 px-4 py-3 pb-16 space-y-3.5 overflow-y-auto">
 
       <div class="flex items-center justify-between px-1">
         <div>
@@ -632,7 +633,7 @@
     <!-- ================================================================= -->
     <!-- TAB 4: TRENDS & INSIGHTS (BEHAVIOR & BIOLOGY) -->
     <!-- ================================================================= -->
-    <main id="tab-trends" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
+    <main id="tab-trends" class="hidden flex-1 px-4 py-3 pb-16 space-y-3.5 overflow-y-auto">
 
       <!-- Header Banner -->
       <div class="flex items-center justify-between px-1">
@@ -775,7 +776,7 @@
     <!-- ================================================================= -->
     <!-- TAB 5: ANALYTICS & TRENDS (CONTINUOUS MULTI-DAY GRAPHS) -->
     <!-- ================================================================= -->
-    <main id="tab-analytics" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
+    <main id="tab-analytics" class="hidden flex-1 px-4 py-3 pb-16 space-y-3.5 overflow-y-auto">
 
       <!-- Header & Time-Range Toggle -->
       <div class="flex items-center justify-between px-1">
@@ -889,50 +890,50 @@
 
     </main>
 
-    <!-- BOTTOM NAVIGATION BAR (5 Professional Tabs) - Permanently Docked -->
-    <nav class="bottom-nav fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-card border-t border-augur-border/80 px-4 pt-3 flex justify-between items-center z-40 backdrop-blur-2xl bg-augur-bg/95">
+    <!-- BOTTOM NAVIGATION BAR (5 Professional Tabs) - Compact & Sleek -->
+    <nav class="bottom-nav fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-card border-t border-augur-border/80 px-4 flex justify-between items-center z-40 backdrop-blur-2xl bg-augur-bg/95">
       <!-- Tab 1: Today -->
-      <button onclick="switchTab('today')" id="nav-today" class="flex flex-col items-center text-augur-green transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button onclick="switchTab('today')" id="nav-today" class="flex flex-col items-center py-1 text-augur-green transition-colors">
+        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Today</span>
+        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Today</span>
         <span class="w-1 h-1 rounded-full bg-augur-green mt-0.5"></span>
       </button>
 
       <!-- Tab 2: Sleep -->
-      <button onclick="switchTab('sleep')" id="nav-sleep" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button onclick="switchTab('sleep')" id="nav-sleep" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
         </svg>
-        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Sleep</span>
+        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Sleep</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
 
       <!-- Tab 3: Strain -->
-      <button onclick="switchTab('strain')" id="nav-strain" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button onclick="switchTab('strain')" id="nav-strain" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
         </svg>
-        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Strain</span>
+        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Strain</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
 
       <!-- Tab 4: Insights -->
-      <button onclick="switchTab('trends')" id="nav-trends" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button onclick="switchTab('trends')" id="nav-trends" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
-        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Insights</span>
+        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Insights</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
 
       <!-- Tab 5: Analytics -->
-      <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Analytics</span>
+        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Analytics</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
     </nav>
