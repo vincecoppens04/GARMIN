@@ -175,6 +175,47 @@
 
     document.addEventListener("DOMContentLoaded", loadLatestTelemetry);
 
+    const MODAL_SYNC_URL = "https://vincecoppens04--augur-backend-sync-now.modal.run";
+
+    async function triggerSyncNow() {
+      const syncBtn = document.getElementById("btn-sync-now");
+      const syncText = document.getElementById("sync-text");
+      const syncIcon = document.getElementById("sync-icon");
+
+      try {
+        if (syncBtn) syncBtn.disabled = true;
+        if (syncIcon) syncIcon.className = "inline-block animate-spin";
+        if (syncText) syncText.innerText = "Syncing Garmin...";
+
+        const res = await fetch(MODAL_SYNC_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          console.log("Modal sync complete:", data);
+          await loadLatestTelemetry();
+          if (syncText) syncText.innerText = "✓ Synced!";
+          setTimeout(() => {
+            if (syncText) syncText.innerText = "Sync Now";
+            if (syncIcon) syncIcon.className = "";
+            if (syncBtn) syncBtn.disabled = false;
+          }, 2500);
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (err) {
+        console.error("Sync error:", err);
+        if (syncText) syncText.innerText = "Sync Failed (Retry)";
+        if (syncIcon) syncIcon.className = "";
+        if (syncBtn) syncBtn.disabled = false;
+        setTimeout(() => {
+          if (syncText) syncText.innerText = "Sync Now";
+        }, 3000);
+      }
+    }
+
     async function promptForPush() {
       if (window.OneSignal) {
         await window.OneSignal.Notifications.requestPermission();
@@ -265,8 +306,9 @@
         <button onclick="promptForPush()" class="py-3 bg-zinc-900/90 border border-zinc-800 active:scale-[0.98] text-xs font-semibold text-gray-300 rounded-2xl flex items-center justify-center gap-1.5 transition-all">
           <span>🔔</span> Test Alerts
         </button>
-        <button onclick="location.reload()" class="py-3 bg-emerald-950/40 border border-emerald-800/40 active:scale-[0.98] text-xs font-semibold text-emerald-400 rounded-2xl flex items-center justify-center gap-1.5 transition-all">
-          <span>⚡</span> Sync Now
+        <button id="btn-sync-now" onclick="triggerSyncNow()" class="py-3 bg-emerald-950/40 border border-emerald-800/40 active:scale-[0.98] text-xs font-semibold text-emerald-400 rounded-2xl flex items-center justify-center gap-1.5 transition-all">
+          <span id="sync-icon">⚡</span>
+          <span id="sync-text">Sync Now</span>
         </button>
       </div>
 
