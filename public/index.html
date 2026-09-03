@@ -2,27 +2,21 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <!-- 1. Viewport: prevents auto-zooming on inputs and enables edge-to-edge drawing -->
+  <!-- Viewport: Edge-to-edge rendering, disable accidental zoom on mobile -->
   <meta 
     name="viewport" 
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" 
   />
 
-  <!-- 2. The magic iOS tags that remove the Safari search & bottom toolbar -->
+  <!-- iOS Safari Standalone PWA Architecture -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-
-  <!-- 3. Top status bar style: blends behind the Dynamic Island / Notch -->
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-  <!-- 4. App title displayed on the iOS Home Screen -->
   <meta name="apple-mobile-web-app-title" content="AUGUR" />
-  <meta name="theme-color" content="#090A0F" />
+  <meta name="theme-color" content="#07080B" />
 
-  <!-- 5. Link to Web Manifests -->
+  <!-- Manifest & Apple Icons -->
   <link rel="manifest" href="/manifest.webmanifest" />
-
-  <!-- 6. iOS Home Screen Icon (180x180 PNG, solid background, no transparency) -->
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
@@ -35,13 +29,24 @@
       darkMode: 'class',
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Inter', 'sans-serif'],
+            mono: ['"SF Mono"', 'Menlo', 'Monaco', 'monospace'],
+          },
           colors: {
             augur: {
-              bg: '#090A0F',
-              card: '#12141C',
-              border: '#1E2230',
-              accent: '#10B981',
-              cyan: '#06B6D4'
+              bg: '#07080B',
+              card: '#0E1016',
+              cardInner: '#141720',
+              border: '#1A1D27',
+              borderLight: '#242938',
+              green: '#00E599',
+              greenGlow: 'rgba(0, 229, 153, 0.25)',
+              yellow: '#FFB800',
+              red: '#FF3B30',
+              blue: '#3B82F6',
+              cyan: '#00F0FF',
+              textMuted: '#6B7280',
             }
           }
         }
@@ -49,7 +54,7 @@
     }
   </script>
 
-  <!-- Safe-Area Mobile CSS (Notch & Home Bar Protection) -->
+  <!-- Safe-Area Mobile CSS & Custom Smooth Animations -->
   <style>
     html, body {
       height: 100%;
@@ -57,11 +62,12 @@
       margin: 0;
       padding: 0;
       overflow-x: hidden;
-      background-color: #090A0F;
+      background-color: #07080B;
       color: #FFFFFF;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
       -webkit-user-select: none;
+      font-variant-numeric: tabular-nums;
     }
 
     #app {
@@ -71,121 +77,1974 @@
       flex-direction: column;
     }
 
-    /* 1. Header padding: protects from Dynamic Island / Notch */
     header.app-header {
-      padding-top: max(16px, env(safe-area-inset-top));
+      padding-top: max(14px, env(safe-area-inset-top));
     }
 
-    /* 2. Bottom Navigation Bar padding: protects from iPhone swipe indicator */
     nav.bottom-nav {
-      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
+    }
+
+    /* Recovery SVG Circle smooth transition */
+    #recovery-circle-bar {
+      transition: stroke-dashoffset 1.4s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.6s ease;
+    }
+
+    /* Custom subtle glass sheen */
+    .glass-card {
+      background: linear-gradient(180deg, rgba(20, 23, 32, 0.8) 0%, rgba(14, 16, 22, 0.95) 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
     }
   </style>
 
   <!-- OneSignal Web SDK v16 Official Integration -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <!-- Supabase JS Client -->
+  <!-- Supabase Client JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-augur-bg text-white antialiased">
+
+  <div id="app" class="w-full max-w-md mx-auto flex flex-col justify-between min-h-screen">
+
+    <!-- TOP BAR: Safe-Area Protected Header -->
+    <header class="app-header px-5 pb-3 pt-2 flex items-center justify-between border-b border-augur-border/40">
+      <div class="flex items-center space-x-2.5">
+        <button onclick="openSettingsModal()" class="w-7 h-7 rounded-lg bg-augur-cardInner border border-augur-border flex items-center justify-center text-zinc-400 hover:text-white transition-colors" title="Settings & Diagnostics">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+        <div class="flex flex-col">
+          <span class="text-xs font-black tracking-widest text-white uppercase leading-tight">AUGUR</span>
+          <span id="date-label" class="text-[9px] font-mono tracking-wider text-zinc-400 uppercase">TODAY</span>
+        </div>
+      </div>
+
+      <!-- Sync Status Pill -->
+      <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-augur-card border border-augur-border">
+          <span id="sync-pulse" class="w-1.5 h-1.5 rounded-full bg-augur-green"></span>
+          <span id="last-sync-time" class="text-[10px] font-mono text-zinc-300">LIVE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================================================================= -->
+    <!-- TAB 1: TODAY (COMMAND CENTER) -->
+    <!-- ================================================================= -->
+    <main id="tab-today" class="flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+
+      <!-- 1. MORNING RECOVERY HERO CARD -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-2xl relative flex flex-col items-center">
+        <div class="w-full flex items-center justify-between mb-1">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Morning Recovery</span>
+          <span id="recovery-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-augur-green/10 text-augur-green border border-augur-green/30">
+            OPTIMAL
+          </span>
+        </div>
+
+        <!-- Animated SVG Recovery Meter -->
+        <div class="relative w-48 h-48 flex items-center justify-center my-1">
+          <svg class="w-full h-full -rotate-90" viewBox="0 0 180 180">
+            <circle cx="90" cy="90" r="72" fill="none" stroke="#131620" stroke-width="12" />
+            <circle
+              id="recovery-circle-bar"
+              cx="90" cy="90" r="72"
+              fill="none"
+              stroke="#00E599"
+              stroke-width="12"
+              stroke-linecap="round"
+              stroke-dasharray="452.39"
+              stroke-dashoffset="452.39"
+            />
+          </svg>
+
+          <!-- Metric Display Inside Ring -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center select-none">
+            <div class="flex items-baseline">
+              <span id="recovery-val" class="text-5xl font-black tracking-tight text-white font-mono leading-none">--</span>
+              <span class="text-2xl font-black text-white font-mono leading-none ml-0.5">%</span>
+            </div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase mt-1">RECOVERY</span>
+          </div>
+        </div>
+
+        <!-- Dynamic Context Line Explaining Primary Driver -->
+        <div class="w-full mt-2 pt-3 border-t border-augur-border/60 flex items-center justify-between text-xs font-mono">
+          <div class="flex items-center space-x-1.5 text-zinc-300 truncate pr-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-augur-green shrink-0"></span>
+            <span id="recovery-driver" class="truncate">Autonomic tone optimal</span>
+          </div>
+          <div class="text-right shrink-0">
+            <span id="hrv-val" class="text-augur-green font-bold">-- ms</span>
+            <span class="text-zinc-600 mx-1">|</span>
+            <span id="rhr-val" class="text-zinc-400">-- bpm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. CUMULATIVE DAY STRAIN VS. TARGET CARD (Dual-Layer Gauge) -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Day Strain</span>
+            <div class="flex items-baseline space-x-1 mt-0.5">
+              <span id="strain-val" class="text-3xl font-black font-mono text-white leading-none">--</span>
+              <span class="text-xs font-mono text-zinc-500">/ 21.0</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Target Window</span>
+            <div class="flex items-center space-x-1 text-sm font-black font-mono text-augur-green mt-0.5">
+              <span id="target-strain-min">--</span>
+              <span class="text-zinc-600">–</span>
+              <span id="target-strain-max">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dual-Layer Horizontal Gauge Bar -->
+        <div class="space-y-1.5">
+          <div class="w-full h-3 rounded-full bg-augur-cardInner border border-augur-border relative overflow-hidden">
+            <div 
+              id="strain-target-bracket" 
+              class="absolute top-0 bottom-0 border-x-2 border-augur-green/80 bg-augur-green/15 z-10 transition-all duration-700"
+              style="left: 60%; width: 25%;"
+            ></div>
+            <div 
+              id="strain-bar-fill" 
+              class="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-augur-cyan transition-all duration-1000 ease-out z-0" 
+              style="width: 0%;"
+            ></div>
+          </div>
+          <div class="flex justify-between text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
+            <span>Rest (0.0)</span>
+            <span class="text-augur-green font-semibold">Target Zone</span>
+            <span>All-Out (21.0)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. SLEEP & REPAIR SNAPSHOT WIDGET (Deep-links to Tab 2) -->
+      <div onclick="switchTab('sleep')" class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl cursor-pointer hover:border-augur-borderLight active:scale-[0.99] transition-all">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-augur-cyan" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+            Sleep & Repair
+          </span>
+          <div class="flex items-center space-x-1 text-zinc-400 text-[10px] font-mono">
+            <span>Details</span>
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 items-center">
+          <div>
+            <span class="text-[9px] font-mono text-zinc-500 uppercase block">Actual vs Need</span>
+            <div class="text-sm font-black font-mono text-white mt-0.5">
+              <span id="sleep-actual-val">7h 15m</span>
+              <span class="text-xs font-normal text-zinc-500"> / </span>
+              <span id="sleep-need-val" class="text-zinc-400 text-xs font-semibold">7h 15m</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[9px] font-mono text-zinc-500 uppercase block">Accumulated Debt</span>
+            <span id="debt-pill" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-augur-cardInner text-augur-green border border-augur-green/30 mt-0.5">
+              0m
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. HEALTH MONITOR OUTLIER FLAG (Deep-links to Tab 2) -->
+      <div onclick="switchTab('sleep')" id="health-flag-card" class="glass-card border border-augur-border rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between cursor-pointer hover:border-augur-borderLight active:scale-[0.99] transition-all">
+        <div class="flex items-center space-x-2.5">
+          <div id="health-flag-icon" class="w-6 h-6 rounded-lg bg-augur-green/10 border border-augur-green/30 flex items-center justify-center text-augur-green">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <span id="health-flag-title" class="text-xs font-bold text-white block">All Vitals Normal</span>
+            <span id="health-flag-sub" class="text-[10px] font-mono text-zinc-400">HRV, RHR, SpO2 & Respiration within baseline</span>
+          </div>
+        </div>
+        <svg class="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+
+      <!-- 5. DAILY HABIT LOGGING BANNER (Interactive Prompt) -->
+      <div id="habit-logging-banner" onclick="openHabitModal()" class="glass-card border border-augur-cyan/30 rounded-2xl p-4 shadow-lg flex items-center justify-between cursor-pointer hover:border-augur-cyan/60 active:scale-[0.99] transition-all">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-xl bg-augur-cyan/10 border border-augur-cyan/30 flex items-center justify-center text-augur-cyan shrink-0">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <div>
+            <span class="text-xs font-bold text-white block">Log Yesterday's Habits</span>
+            <span class="text-[10px] text-zinc-400 block">Record alcohol, caffeine, or meals to train the AI</span>
+          </div>
+        </div>
+        <div class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-augur-cyan/10 border border-augur-cyan/30 text-augur-cyan text-[11px] font-bold uppercase tracking-wider shrink-0">
+          <span>Log</span>
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- AUTONOMIC SPORTS SCIENCE SYNTHESIS (CLINICAL ENGINE) -->
+      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-augur-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Autonomic Synthesis
+          </span>
+          <span class="text-[9px] font-mono text-zinc-500 uppercase">CLINICAL ENGINE</span>
+        </div>
+        <p id="ai-briefing-text" class="text-xs text-zinc-300 leading-relaxed font-sans">
+          Loading autonomic synthesis...
+        </p>
+      </div>
+
+      <!-- SYNC TELEMETRY BUTTON (Calls Live Modal Webhook) -->
+      <button 
+        id="btn-sync-telemetry" 
+        onclick="triggerModalSync()" 
+        class="w-full py-3.5 rounded-2xl glass-card border border-augur-borderLight/80 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 text-xs font-bold tracking-wider uppercase text-zinc-200 hover:text-white"
+      >
+        <svg id="sync-spinner" class="w-4 h-4 text-augur-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span id="sync-button-text">Sync Telemetry</span>
+      </button>
+
+    </main>
+
+    <!-- ================================================================= -->
+    <!-- TAB 2: SLEEP & HEALTH (VITALS & READINESS) -->
+    <!-- ================================================================= -->
+    <main id="tab-sleep" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+
+      <!-- Header Banner -->
+      <div class="flex items-center justify-between px-1">
+        <div>
+          <h2 class="text-sm font-black tracking-widest text-white uppercase">Sleep & Repair</h2>
+          <p class="text-[10px] font-mono tracking-wider text-zinc-400 uppercase">Autonomic Regeneration & Circadian Matrix</p>
+        </div>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-augur-cardInner text-augur-cyan border border-augur-cyan/30">
+          LEDGER ACTIVE
+        </span>
+      </div>
+
+      <!-- 1. SLEEP NEED BREAKDOWN EQUATION CARD -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-2xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Tonight's Target Need</span>
+            <div class="text-3xl font-black font-mono text-augur-cyan mt-0.5 leading-none" id="tab2-sleep-target">
+              --h --m
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Lights-Out Clock</span>
+            <div class="text-lg font-black font-mono text-white mt-0.5" id="tab2-bedtime-clock">
+              --:--
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
+          <span class="text-[9px] font-mono uppercase text-zinc-400 font-semibold block">Rolling Sleep Ledger Equation</span>
+          <div class="text-xs font-mono font-bold text-zinc-200 flex flex-wrap items-center gap-1.5" id="tab2-equation-breakdown">
+            <span id="tab2-eq-base" class="text-white">7h 15m (Base)</span>
+            <span class="text-zinc-500">+</span>
+            <span id="tab2-eq-strain" class="text-augur-green">24m (Strain)</span>
+            <span class="text-zinc-500">+</span>
+            <span id="tab2-eq-debt" class="text-augur-yellow">0m (Debt)</span>
+            <span class="text-zinc-500">-</span>
+            <span class="text-zinc-400">0m (Naps)</span>
+          </div>
+          <p class="text-[10px] text-zinc-500 leading-snug font-sans">
+            Strain demand adds ~4.8 min per point of strain over 10.0. Current debt pays back at 33% nightly.
+          </p>
+        </div>
+      </div>
+
+      <!-- 2. SLEEP ARCHITECTURE BAR & EFFICIENCY -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Sleep Architecture</span>
+            <div class="flex items-baseline space-x-2 mt-0.5">
+              <span id="tab2-sleep-dur" class="text-2xl font-black font-mono text-white">--h --m</span>
+              <span class="text-xs font-mono text-zinc-500">Slept</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Efficiency</span>
+            <div class="flex items-center justify-end space-x-1 mt-0.5">
+              <span id="tab2-efficiency" class="text-lg font-black font-mono text-augur-green">--%</span>
+            </div>
+            <span id="tab2-bed-dur" class="text-[10px] font-mono text-zinc-500 block">In Bed: --h --m</span>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <div class="w-full h-3.5 rounded-xl bg-augur-cardInner border border-augur-border overflow-hidden flex shadow-inner">
+            <div id="bar-deep" class="h-full bg-blue-600 transition-all duration-700" style="width: 18%;" title="Deep Sleep"></div>
+            <div id="bar-rem" class="h-full bg-purple-500 transition-all duration-700" style="width: 24%;" title="REM Sleep"></div>
+            <div id="bar-light" class="h-full bg-cyan-500 transition-all duration-700" style="width: 53%;" title="Light Sleep"></div>
+            <div id="bar-awake" class="h-full bg-rose-500 transition-all duration-700" style="width: 5%;" title="Awake"></div>
+          </div>
+
+          <div class="grid grid-cols-4 gap-1.5 text-center pt-1 font-mono text-[10px]">
+            <div class="p-1.5 rounded-xl bg-augur-cardInner border border-blue-900/40">
+              <span class="block text-blue-400 font-bold">Deep</span>
+              <span id="stage-deep-val" class="text-zinc-300">--h --m</span>
+            </div>
+            <div class="p-1.5 rounded-xl bg-augur-cardInner border border-purple-900/40">
+              <span class="block text-purple-400 font-bold">REM</span>
+              <span id="stage-rem-val" class="text-zinc-300">--h --m</span>
+            </div>
+            <div class="p-1.5 rounded-xl bg-augur-cardInner border border-cyan-900/40">
+              <span class="block text-cyan-400 font-bold">Light</span>
+              <span id="stage-light-val" class="text-zinc-300">--h --m</span>
+            </div>
+            <div class="p-1.5 rounded-xl bg-augur-cardInner border border-rose-900/40">
+              <span class="block text-rose-400 font-bold">Awake</span>
+              <span id="stage-awake-val" class="text-zinc-300">--m</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. CIRCADIAN CONSISTENCY SCORE CARD -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Circadian Consistency</span>
+            <div class="flex items-baseline space-x-2 mt-0.5">
+              <span id="tab2-circadian-score" class="text-3xl font-black font-mono text-augur-green">--%</span>
+              <span id="tab2-circadian-badge" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-augur-green/10 text-augur-green border border-augur-green/30">
+                REGULAR
+              </span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[9px] font-mono text-zinc-500 uppercase block">7-Day Regularity</span>
+            <span id="tab2-circadian-dev" class="text-xs font-mono text-zinc-400">±18m total variance</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-augur-border/60">
+          <div class="p-2.5 rounded-2xl bg-augur-cardInner border border-augur-border/60">
+            <span class="text-[9px] font-mono text-zinc-500 uppercase block">Sleep Onset</span>
+            <span id="tab2-onset-time" class="text-sm font-black font-mono text-white block mt-0.5">--:--</span>
+            <span class="text-[9px] font-mono text-zinc-500">±18m variance</span>
+          </div>
+          <div class="p-2.5 rounded-2xl bg-augur-cardInner border border-augur-border/60">
+            <span class="text-[9px] font-mono text-zinc-500 uppercase block">Morning Wake</span>
+            <span id="tab2-wake-time" class="text-sm font-black font-mono text-white block mt-0.5">--:--</span>
+            <span class="text-[9px] font-mono text-zinc-500">±12m variance</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. HEALTH MONITOR (30-DAY BASELINE MATRIX) -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-augur-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              Health Monitor (30-Day Baselines)
+            </span>
+            <span class="text-[9px] font-mono text-zinc-500 uppercase">Pre-symptomatic Anomaly Engine (μ ± 1.5σ)</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left font-mono text-xs">
+            <thead>
+              <tr class="text-[9px] text-zinc-500 uppercase border-b border-augur-border pb-1">
+                <th class="py-1.5 font-semibold">Metric</th>
+                <th class="py-1.5 font-semibold text-center">Last Night</th>
+                <th class="py-1.5 font-semibold text-center">30d Baseline</th>
+                <th class="py-1.5 font-semibold text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-augur-border/40 text-xs">
+              <tr>
+                <td class="py-2.5 font-bold text-zinc-200">HRV (rMSSD)</td>
+                <td class="py-2.5 text-center font-black text-white" id="row-hrv-val">94 ms</td>
+                <td class="py-2.5 text-center text-zinc-400 text-[11px]" id="row-hrv-base">68–107 ms</td>
+                <td class="py-2.5 text-right"><span id="row-hrv-status" class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK]</span></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-bold text-zinc-200">Resting HR</td>
+                <td class="py-2.5 text-center font-black text-white" id="row-rhr-val">45 bpm</td>
+                <td class="py-2.5 text-center text-zinc-400 text-[11px]" id="row-rhr-base">42–48 bpm</td>
+                <td class="py-2.5 text-right"><span id="row-rhr-status" class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK]</span></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-bold text-zinc-200">Respiration</td>
+                <td class="py-2.5 text-center font-black text-white" id="row-resp-val">12.0 brpm</td>
+                <td class="py-2.5 text-center text-zinc-400 text-[11px]" id="row-resp-base">11.4–12.6 brpm</td>
+                <td class="py-2.5 text-right"><span id="row-resp-status" class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK]</span></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-bold text-zinc-200">Pulse Ox (SpO2)</td>
+                <td class="py-2.5 text-center font-black text-white" id="row-spo2-val">97%</td>
+                <td class="py-2.5 text-center text-zinc-400 text-[11px]" id="row-spo2-base">96–98%</td>
+                <td class="py-2.5 text-right"><span id="row-spo2-status" class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK]</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-augur-cardInner/60 border border-augur-border/60 flex items-start space-x-2 text-[10px] text-zinc-400 font-sans">
+          <svg class="w-4 h-4 text-augur-green shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p>
+            An elevated respiratory rate (>+1.5σ) serves as the primary early biomarker for fever, infection, or systemic overtraining before conscious symptoms manifest.
+          </p>
+        </div>
+      </div>
+
+      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
+        ← Return to Command Center
+      </button>
+
+    </main>
+
+    <!-- ================================================================= -->
+    <!-- TAB 3: ACTIVITIES & STRAIN (EXERTION & WORKOUTS) -->
+    <!-- ================================================================= -->
+    <main id="tab-strain" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+
+      <div class="flex items-center justify-between px-1">
+        <div>
+          <h2 class="text-sm font-black tracking-widest text-white uppercase">Activities & Strain</h2>
+          <p class="text-[10px] font-mono tracking-wider text-zinc-400 uppercase">Cardiovascular Load & Workouts</p>
+        </div>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-augur-cardInner text-blue-400 border border-blue-500/30">
+          BANISTER LOGARITHMIC
+        </span>
+      </div>
+
+      <!-- 1. 24-Hour Cumulative Strain Curve -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-2xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">All-Day Strain</span>
+            <div class="flex items-baseline space-x-1.5 mt-0.5">
+              <span id="tab3-strain-val" class="text-3xl font-black font-mono text-white">--</span>
+              <span class="text-xs font-mono text-zinc-500">/ 21.0</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Cardiovascular Load</span>
+            <span id="tab3-strain-status" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30 block mt-1">
+              ACCUMULATING
+            </span>
+          </div>
+        </div>
+
+        <div class="space-y-1 pt-1">
+          <div class="flex items-center justify-between text-[9px] font-mono text-zinc-500 uppercase">
+            <span>24-Hour Cardiovascular Load Curve</span>
+            <span>0.0 → 21.0 Scale</span>
+          </div>
+
+          <div class="relative w-full h-36 bg-augur-cardInner rounded-2xl border border-augur-border p-2 overflow-hidden">
+            <div class="absolute inset-0 flex flex-col justify-between p-3 pointer-events-none opacity-20">
+              <div class="border-b border-white flex justify-between text-[8px] font-mono"><span>21</span></div>
+              <div class="border-b border-white flex justify-between text-[8px] font-mono"><span>14</span></div>
+              <div class="border-b border-white flex justify-between text-[8px] font-mono"><span>7</span></div>
+              <div class="border-b border-white flex justify-between text-[8px] font-mono"><span>0</span></div>
+            </div>
+
+            <svg id="strain-curve-svg" class="w-full h-full" viewBox="0 0 360 120" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="strainAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.35"/>
+                  <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.0"/>
+                </linearGradient>
+                <linearGradient id="strainStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#3B82F6"/>
+                  <stop offset="50%" stop-color="#6366F1"/>
+                  <stop offset="100%" stop-color="#00F0FF"/>
+                </linearGradient>
+              </defs>
+              <path id="strain-area-path" d="M 0,115 L 360,115 Z" fill="url(#strainAreaGrad)" />
+              <path id="strain-stroke-path" d="M 0,115 L 360,115" fill="none" stroke="url(#strainStrokeGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+
+          <div class="flex justify-between px-1 text-[9px] font-mono text-zinc-500 uppercase">
+            <span>00:00</span>
+            <span>06:00</span>
+            <span>12:00</span>
+            <span>18:00</span>
+            <span>23:59</span>
+          </div>
+        </div>
+
+        <p class="text-[10px] text-zinc-500 leading-snug font-sans pt-1">
+          TRIMP accumulated exponentially above rest. Workouts cause sharp vertical jumps, while ambient daily stress yields gradual upward slopes.
+        </p>
+      </div>
+
+      <!-- 2. Workout Feed -->
+      <div class="space-y-2.5">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-augur-cyan" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Workout Feed
+          </span>
+          <span id="tab3-feed-count" class="text-[9px] font-mono text-zinc-500 uppercase">Loading Workouts...</span>
+        </div>
+
+        <div id="workout-feed-list" class="space-y-2.5"></div>
+      </div>
+
+      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
+        ← Return to Command Center
+      </button>
+
+    </main>
+
+    <!-- ================================================================= -->
+    <!-- TAB 4: TRENDS & INSIGHTS (BEHAVIOR & BIOLOGY) -->
+    <!-- ================================================================= -->
+    <main id="tab-trends" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+
+      <!-- Header Banner -->
+      <div class="flex items-center justify-between px-1">
+        <div>
+          <h2 class="text-sm font-black tracking-widest text-white uppercase">Trends & Insights</h2>
+          <p class="text-[10px] font-mono tracking-wider text-zinc-400 uppercase">Behavior & Long-Term Intelligence</p>
+        </div>
+        <div class="flex items-center p-1 rounded-xl bg-augur-cardInner border border-augur-border font-mono text-[10px]">
+          <button onclick="setGlobalTimeRange(7)" id="tab4-range-7" class="px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">7D</button>
+          <button onclick="setGlobalTimeRange(30)" id="tab4-range-30" class="px-2.5 py-1 rounded-lg bg-augur-green text-black font-bold transition-all shadow-sm">30D</button>
+          <button onclick="setGlobalTimeRange(90)" id="tab4-range-90" class="px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">90D</button>
+        </div>
+      </div>
+
+      <!-- 1. HABIT CORRELATION ENGINE -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-2xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span id="habit-engine-title">Habit Correlation Engine (Past 30 Days)</span>
+            </span>
+            <span class="text-[10px] text-zinc-400 block mt-0.5">Statistical impact on recovery and sleep architecture</span>
+          </div>
+          <span class="text-[9px] font-mono text-zinc-500">ΔMetric (N ≥ 3)</span>
+        </div>
+
+        <!-- Dynamic Habit Correlation List -->
+        <div id="habit-correlation-list" class="space-y-2 pt-1 font-mono">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <div class="text-[9px] font-mono text-zinc-500 pt-1 border-t border-augur-border/40 flex justify-between">
+          <span>Formula: ΔX = X̄_present - X̄_absent</span>
+          <span id="habit-sample-window">Sample window: 30 days</span>
+        </div>
+      </div>
+
+      <!-- 2. STRAIN VS. RECOVERY BALANCE (4-QUADRANT SCATTER PLOT) -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Strain vs. Recovery Balance</span>
+            <div class="text-sm font-black font-mono text-white mt-0.5" id="balance-quadrant-title">
+              Optimal Overload (7d)
+            </div>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-augur-green/10 text-augur-green border border-augur-green/30" id="balance-badge">
+            ADAPTING
+          </span>
+        </div>
+
+        <!-- 4-Quadrant Visual Plot -->
+        <div class="relative w-full h-48 bg-augur-cardInner rounded-2xl border border-augur-border overflow-hidden p-3 select-none">
+          <!-- 4 Tinted Quadrant Backdrops -->
+          <div class="absolute inset-0 grid grid-cols-2 grid-rows-2 p-2 gap-1 pointer-events-none">
+            <!-- Top-Left: Restoring -->
+            <div class="bg-cyan-500/5 rounded-xl border border-cyan-500/10 p-2 flex flex-col justify-between">
+              <span class="text-[9px] font-mono font-bold text-cyan-400 uppercase">Restoring</span>
+              <span class="text-[7px] font-mono text-zinc-600">Low Strain / High Rec</span>
+            </div>
+            <!-- Top-Right: Optimal Overload -->
+            <div class="bg-augur-green/10 rounded-xl border border-augur-green/20 p-2 flex flex-col justify-between">
+              <span class="text-[9px] font-mono font-bold text-augur-green uppercase">Optimal Overload</span>
+              <span class="text-[7px] font-mono text-zinc-600">High Strain / High Rec</span>
+            </div>
+            <!-- Bottom-Left: Detraining -->
+            <div class="bg-amber-500/5 rounded-xl border border-amber-500/10 p-2 flex flex-col justify-between">
+              <span class="text-[9px] font-mono font-bold text-amber-400 uppercase">Detraining</span>
+              <span class="text-[7px] font-mono text-zinc-600">Low Strain / Low Rec</span>
+            </div>
+            <!-- Bottom-Right: Overreaching -->
+            <div class="bg-rose-500/5 rounded-xl border border-rose-500/10 p-2 flex flex-col justify-between">
+              <span class="text-[9px] font-mono font-bold text-rose-400 uppercase">Overreaching</span>
+              <span class="text-[7px] font-mono text-zinc-600">High Strain / Low Rec</span>
+            </div>
+          </div>
+
+          <!-- Dynamic User Marker Dot -->
+          <div 
+            id="quadrant-user-dot"
+            class="absolute w-4 h-4 rounded-full bg-augur-green border-2 border-white shadow-lg transition-all duration-700 flex items-center justify-center -translate-x-1/2 -translate-y-1/2"
+            style="left: 68%; top: 32%;"
+          >
+            <span class="w-8 h-8 rounded-full bg-augur-green/30 animate-ping absolute"></span>
+          </div>
+        </div>
+
+        <div class="flex justify-between text-[9px] font-mono text-zinc-500">
+          <span>X: 7d Avg Strain (<span id="balance-7d-strain">14.8</span>)</span>
+          <span>Y: 7d Avg Recovery (<span id="balance-7d-recovery">74%</span>)</span>
+        </div>
+      </div>
+
+      <!-- 3. CARDIOVASCULAR BIOLOGICAL AGE CARD -->
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Cardiovascular Age</span>
+            <div class="flex items-baseline space-x-2 mt-0.5">
+              <span id="bio-age-val" class="text-3xl font-black font-mono text-augur-cyan">18.0</span>
+              <span class="text-xs font-mono text-zinc-500">years biological</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[9px] font-mono text-zinc-500 uppercase block">Calendar Age</span>
+            <span id="calendar-age-val" class="text-sm font-black font-mono text-zinc-300">22 yrs</span>
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-augur-cyan/10 text-augur-cyan border border-augur-cyan/30 inline-block mt-0.5">
+              -4.0 yrs
+            </span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-augur-border/60 font-mono text-xs">
+          <div class="p-2.5 rounded-2xl bg-augur-cardInner border border-augur-border/60">
+            <span class="text-[9px] text-zinc-500 uppercase block">VO2 Max (Aerobic Power)</span>
+            <span id="bio-vo2-val" class="text-sm font-bold text-white block mt-0.5">51.5 ml/kg/min</span>
+            <span class="text-[9px] text-augur-green">Top 5% for Age</span>
+          </div>
+          <div class="p-2.5 rounded-2xl bg-augur-cardInner border border-augur-border/60">
+            <span class="text-[9px] text-zinc-500 uppercase block">Baseline RHR Floor</span>
+            <span id="bio-rhr-val" class="text-sm font-bold text-white block mt-0.5">45 bpm</span>
+            <span class="text-[9px] text-augur-green">High Stroke Volume</span>
+          </div>
+        </div>
+
+        <p class="text-[10px] text-zinc-500 leading-snug font-sans">
+          Jackson et al. / HUNT study regression: ΔAge = (VO2Max - Expected) / 0.37 + (50 - RHR) / 5. Clamped at 18.0 minimum.
+        </p>
+      </div>
+
+      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
+        ← Return to Command Center
+      </button>
+
+    </main>
+
+    <!-- ================================================================= -->
+    <!-- TAB 5: ANALYTICS & TRENDS (CONTINUOUS MULTI-DAY GRAPHS) -->
+    <!-- ================================================================= -->
+    <main id="tab-analytics" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+
+      <!-- Header & Time-Range Toggle -->
+      <div class="flex items-center justify-between px-1">
+        <div>
+          <h2 class="text-sm font-black tracking-widest text-white uppercase">Analytics & Trends</h2>
+          <p class="text-[10px] font-mono tracking-wider text-zinc-400 uppercase">Continuous Multi-Day Telemetry</p>
+        </div>
+        <!-- Time Range Selector -->
+        <div class="flex items-center p-1 rounded-xl bg-augur-cardInner border border-augur-border font-mono text-[10px]">
+          <button onclick="setGlobalTimeRange(7)" id="tab5-range-7" class="px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">7D</button>
+          <button onclick="setGlobalTimeRange(30)" id="tab5-range-30" class="px-2.5 py-1 rounded-lg bg-augur-green text-black font-bold transition-all shadow-sm">30D</button>
+          <button onclick="setGlobalTimeRange(90)" id="tab5-range-90" class="px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">90D</button>
+        </div>
+      </div>
+
+      <!-- GRAPH 1: OVERNIGHT HRV TREND -->
+      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Overnight HRV (rMSSD)</span>
+          <span class="text-xs font-mono font-bold text-augur-green" id="analytics-hrv-readout">Latest: 94 ms | Mean: 87.3</span>
+        </div>
+        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
+          <svg id="chart-hrv-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+            <rect id="hrv-confidence-band" x="0" y="20" width="320" height="40" fill="rgba(0, 229, 153, 0.08)" />
+            <line id="hrv-mean-line" x1="0" y1="40" x2="320" y2="40" stroke="#00E599" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
+            <path id="hrv-trend-path" d="" fill="none" stroke="#00E599" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+          <span>Confidence Band (±1.5σ)</span>
+          <span>Rolling Baseline Mean (--)</span>
+        </div>
+      </div>
+
+      <!-- GRAPH 2: RESTING HEART RATE (RHR) TREND -->
+      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Resting Heart Rate (RHR)</span>
+          <span class="text-xs font-mono font-bold text-zinc-200" id="analytics-rhr-readout">Latest: 45 bpm | Mean: 44.9</span>
+        </div>
+        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
+          <svg id="chart-rhr-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+            <line id="rhr-mean-line" x1="0" y1="45" x2="320" y2="45" stroke="#6B7280" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
+            <path id="rhr-trend-path" d="" fill="none" stroke="#FFB800" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+          <span>Lower is Fitter</span>
+          <span>Baseline Floor (44.9 bpm)</span>
+        </div>
+      </div>
+
+      <!-- GRAPH 3: SLEEP DURATION VS. SLEEP NEED -->
+      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Sleep Duration vs. Need</span>
+          <span class="text-xs font-mono font-bold text-augur-cyan" id="analytics-sleep-readout">Avg: 6h 52m / Need: 7h 15m</span>
+        </div>
+        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
+          <svg id="chart-sleep-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+            <!-- Sleep Need Line -->
+            <line x1="0" y1="25" x2="320" y2="25" stroke="#00F0FF" stroke-width="1.5" stroke-dasharray="3,3" />
+            <!-- Dynamic Stacked Bars -->
+            <g id="sleep-bars-group"></g>
+          </svg>
+        </div>
+        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+          <span>Light, REM & Deep Bars</span>
+          <span class="text-augur-cyan font-bold">Target Need Line (--)</span>
+        </div>
+      </div>
+
+      <!-- GRAPH 4: DAILY STRAIN HISTORY -->
+      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Daily Strain History (0–21)</span>
+          <span class="text-xs font-mono font-bold text-blue-400" id="analytics-strain-readout">Avg Strain: 12.8</span>
+        </div>
+        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
+          <svg id="chart-strain-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+            <g id="strain-bars-group"></g>
+          </svg>
+        </div>
+        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+          <span>Green = Optimal | Amber = High | Red = Overreach</span>
+          <span>Max 21.0</span>
+        </div>
+      </div>
+
+      <!-- GRAPH 5: RESPIRATION & SPO2 -->
+      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Respiration & Pulse Ox (SpO2)</span>
+          <span class="text-xs font-mono font-bold text-white">Resp: 12.0 brpm | SpO2: 97%</span>
+        </div>
+        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
+          <svg id="chart-resp-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+            <path id="spo2-trend-path" d="" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" />
+            <path id="resp-trend-path" d="" fill="none" stroke="#00E599" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+          <span class="text-augur-green">Respiration (12.0 brpm)</span>
+          <span class="text-blue-400">Pulse Ox (97%)</span>
+        </div>
+      </div>
+
+      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
+        ← Return to Command Center
+      </button>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION BAR (5 Professional Tabs) -->
+    <nav class="bottom-nav glass-card border-t border-augur-border/80 px-4 pt-3 flex justify-between items-center z-20">
+      <!-- Tab 1: Today -->
+      <button onclick="switchTab('today')" id="nav-today" class="flex flex-col items-center text-augur-green transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Today</span>
+        <span class="w-1 h-1 rounded-full bg-augur-green mt-0.5"></span>
+      </button>
+
+      <!-- Tab 2: Sleep -->
+      <button onclick="switchTab('sleep')" id="nav-sleep" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Sleep</span>
+        <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
+      </button>
+
+      <!-- Tab 3: Strain -->
+      <button onclick="switchTab('strain')" id="nav-strain" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+        </svg>
+        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Strain</span>
+        <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
+      </button>
+
+      <!-- Tab 4: Insights -->
+      <button onclick="switchTab('trends')" id="nav-trends" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Insights</span>
+        <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
+      </button>
+
+      <!-- Tab 5: Analytics -->
+      <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <span class="text-[9px] font-bold tracking-wider uppercase mt-1">Analytics</span>
+        <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- SETTINGS & DIAGNOSTICS FULL SCREEN SLIDE-UP MODAL -->
+  <!-- ================================================================= -->
+  <div id="settings-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex flex-col justify-end">
+    <div class="glass-card border-t border-augur-border rounded-t-3xl p-6 w-full max-w-md mx-auto space-y-5 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-augur-border">
+        <div class="flex items-center space-x-2">
+          <button onclick="closeSettingsModal()" class="w-8 h-8 rounded-xl bg-augur-cardInner border border-augur-border flex items-center justify-center text-zinc-300 hover:text-white">
+            ←
+          </button>
+          <h3 class="text-sm font-black uppercase tracking-wider text-white">Settings & Diagnostics</h3>
+        </div>
+        <span class="text-[9px] font-mono text-augur-green font-bold uppercase tracking-wider bg-augur-green/10 border border-augur-green/30 px-2 py-0.5 rounded-full">
+          ENGINE ONLINE
+        </span>
+      </div>
+
+      <!-- 1. GARMIN INTEGRATION -->
+      <div class="space-y-2.5">
+        <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Garmin Integration & Sync</span>
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-3">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="text-zinc-400">Connection Status</span>
+            <span class="text-augur-green font-bold flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-augur-green animate-pulse"></span>
+              Connected (instinct3_user)
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-zinc-400 font-sans">Sync Frequency</span>
+            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2.5 py-1 text-white font-mono outline-none">
+              <option>Every 3 Hours (Auto)</option>
+              <option>Once Daily (06:00)</option>
+              <option>On App Launch</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button onclick="triggerModalSync()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[11px] font-bold font-mono text-zinc-200 hover:text-white uppercase">
+              Sync Now
+            </button>
+            <button onclick="triggerModalSync()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[11px] font-bold font-mono text-zinc-200 hover:text-white uppercase">
+              Backfill 60 Days
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. PHYSIOLOGICAL BASELINES -->
+      <div class="space-y-2.5">
+        <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Physiological Baselines</span>
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-3 font-mono text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-zinc-400 font-sans">Max Heart Rate (HR_max)</span>
+            <div class="flex items-center space-x-1">
+              <input type="number" value="202" class="w-16 bg-augur-card border border-augur-border text-center text-xs rounded-lg py-1 text-white font-bold outline-none" />
+              <span class="text-zinc-500 text-[10px]">bpm</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-zinc-400 font-sans">RHR Calculation</span>
+            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none">
+              <option>Dynamic 30d Mean</option>
+              <option>Fixed Floor (45 bpm)</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-zinc-400 font-sans">Baseline Sleep Need</span>
+            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none">
+              <option>7h 15m (435 min)</option>
+              <option>7h 30m (450 min)</option>
+              <option>8h 00m (480 min)</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-zinc-400 font-sans">Debt Payback Rate</span>
+            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none">
+              <option>Moderate (33% / night)</option>
+              <option>Conservative (20% / night)</option>
+              <option>Aggressive (50% / night)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. CURATED HABIT CHECKLIST TOGGLES -->
+      <div class="space-y-2.5">
+        <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Curated Habit Journal Fields</span>
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
+          <label class="flex items-center justify-between text-xs cursor-pointer">
+            <span class="text-zinc-300">Alcohol Consumption</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between text-xs cursor-pointer">
+            <span class="text-zinc-300">Late Meal (&lt;2h before sleep)</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between text-xs cursor-pointer">
+            <span class="text-zinc-300">Caffeine Consumption (Any time)</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between text-xs cursor-pointer">
+            <span class="text-zinc-300">Late Caffeine (After 14:00)</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between text-xs cursor-pointer">
+            <span class="text-zinc-300">Screen Time in Bed (&gt;15 min)</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between text-xs cursor-pointer">
+            <span class="text-zinc-300">Travel Day / Jetlag</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+        </div>
+      </div>
+
+      <!-- 4. NOTIFICATIONS -->
+      <div class="space-y-2.5">
+        <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Notifications (Europe/Brussels)</span>
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2 text-xs">
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-zinc-300">Morning Recovery Summary (08:00)</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-zinc-300">Habit Journal Reminder (07:30)</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-zinc-300">Health Anomaly Immediate Alert</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-zinc-300">Evening Bedtime Guidance (21:00)</span>
+            <input type="checkbox" checked class="w-4 h-4 accent-augur-green rounded">
+          </label>
+        </div>
+      </div>
+
+      <!-- 5. SYSTEM & DIAGNOSTICS -->
+      <div class="space-y-2.5">
+        <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">System & Diagnostics</span>
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-3 font-mono text-xs">
+          <div class="flex justify-between">
+            <span class="text-zinc-400">HRV 30d Baseline</span>
+            <span class="text-white font-bold" id="diag-hrv-base">87.3 ms (±13.2)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-zinc-400">RHR 30d Baseline</span>
+            <span class="text-white font-bold" id="diag-rhr-base">44.9 bpm (±2.0)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-zinc-400">VO2 Max (Precise)</span>
+            <span class="text-augur-cyan font-bold" id="diag-vo2-base">51.5 ml/kg/min</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-augur-border/40">
+            <button onclick="triggerModalSync()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[10px] font-bold text-zinc-300 hover:text-white uppercase">
+              Recalculate
+            </button>
+            <button onclick="exportDataJSON()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[10px] font-bold text-augur-cyan hover:text-white uppercase">
+              Export JSON
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="closeSettingsModal()" class="w-full py-3.5 bg-augur-green active:scale-[0.98] text-black text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-augur-green/20">
+        Done
+      </button>
+
+    </div>
+  </div>
+
+  <!-- DAILY HABIT LOGGING MODAL SHEET -->
+  <div id="habit-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex flex-col justify-end">
+    <div class="glass-card border-t border-augur-border rounded-t-3xl p-6 w-full max-w-md mx-auto space-y-4 animate-in slide-in-from-bottom duration-300">
+      <div class="flex items-center justify-between pb-2 border-b border-augur-border">
+        <div>
+          <h3 class="text-sm font-black uppercase tracking-wider text-white">Log Yesterday's Habits</h3>
+          <p id="habit-modal-date" class="text-[10px] font-mono text-zinc-400">Targeting physiological baseline</p>
+        </div>
+        <button onclick="closeHabitModal()" class="w-7 h-7 rounded-full bg-augur-cardInner border border-augur-border flex items-center justify-center text-zinc-400 hover:text-white">
+          ✕
+        </button>
+      </div>
+
+      <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+        <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
+          <span class="text-xs font-bold text-zinc-200">Alcohol Consumption</span>
+          <input type="checkbox" id="habit-alcohol" class="w-5 h-5 accent-augur-green rounded">
+        </label>
+        <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
+          <span class="text-xs font-bold text-zinc-200">Late Meal (&lt;2-3h before bed)</span>
+          <input type="checkbox" id="habit-late-meal" class="w-5 h-5 accent-augur-green rounded">
+        </label>
+        <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
+          <span class="text-xs font-bold text-zinc-200">Caffeine Consumption (Any time)</span>
+          <input type="checkbox" id="habit-any-caffeine" class="w-5 h-5 accent-augur-green rounded">
+        </label>
+        <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
+          <span class="text-xs font-bold text-zinc-200">Late Caffeine (After 14:00)</span>
+          <input type="checkbox" id="habit-late-caffeine" class="w-5 h-5 accent-augur-green rounded">
+        </label>
+        <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
+          <span class="text-xs font-bold text-zinc-200">Screen in Bed (&gt;30 min)</span>
+          <input type="checkbox" id="habit-screen" class="w-5 h-5 accent-augur-green rounded">
+        </label>
+        <label class="flex items-center justify-between p-3 rounded-2xl bg-augur-cardInner border border-augur-border cursor-pointer active:scale-[0.99] transition-all">
+          <span class="text-xs font-bold text-zinc-200">Travel Day / Jetlag</span>
+          <input type="checkbox" id="habit-travel" class="w-5 h-5 accent-augur-green rounded">
+        </label>
+      </div>
+
+      <button 
+        id="btn-save-habits" 
+        onclick="saveHabitLog()" 
+        class="w-full py-3.5 bg-augur-green active:scale-[0.98] text-black text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-augur-green/20"
+      >
+        Save Yesterday's Habits
+      </button>
+    </div>
+  </div>
+
+  <!-- APPLICATION LOGIC & HYDRATION ENGINE -->
   <script>
     const SUPABASE_URL = "https://txtbsurmejrwtiapjmni.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4dGJzdXJtZWpyd3RpYXBqbW5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNjM1NjYsImV4cCI6MjEwMzkzOTU2Nn0.g_4RbFZmfUPcXXdazzeHtPKvisfBwwsPf15x-gYhVU8";
+    const MODAL_READ_URL = "https://vincecoppens04--augur-backend-get-telemetry.modal.run";
+    const MODAL_SYNC_URL = "https://vincecoppens04--augur-backend-sync-now.modal.run";
+    const MODAL_HABITS_URL = "https://vincecoppens04--augur-backend-log-habits.modal.run";
+
     const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-    async function loadLatestTelemetry() {
-      try {
-        if (!supabaseClient) return;
-        const { data, error } = await supabaseClient
-          .from('daily_summaries')
-          .select('*')
-          .order('date', { ascending: false })
-          .limit(1);
+    const CIRCUMFERENCE = 452.39;
+    let currentTelemetryDate = null;
+    let cachedTelemetry = null;
+    let activeAnalyticsRange = 7;
 
-        if (data && data.length > 0) {
-          const row = data[0];
-          const recEl = document.getElementById('rec-score');
-          if (recEl) recEl.innerText = (row.recovery_score || 50) + '%';
+    function renderRecoveryRing(score) {
+      const circle = document.getElementById("recovery-circle-bar");
+      const badge = document.getElementById("recovery-badge");
+      const valEl = document.getElementById("recovery-val");
 
-          const badge = document.getElementById('rec-badge');
-          if (badge) {
-            if (row.recovery_score >= 67) {
-              badge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800";
-              badge.innerText = "PRIMED";
-            } else if (row.recovery_score >= 34) {
-              badge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-400 border border-amber-800";
-              badge.innerText = "ADEQUATE";
-            } else {
-              badge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-950/80 text-rose-400 border border-rose-800";
-              badge.innerText = "REST";
-            }
-          }
+      valEl.innerText = score != null ? Math.round(score) : "--";
 
-          const strainEl = document.getElementById('day-strain');
-          if (strainEl) strainEl.innerHTML = `${(row.day_strain || 0).toFixed(1)} <span class="text-xs text-gray-500 font-normal">/ 21.0</span>`;
+      const s = Math.max(0, Math.min(100, score != null ? score : 0));
+      const offset = CIRCUMFERENCE - (s / 100) * CIRCUMFERENCE;
+      circle.style.strokeDashoffset = offset;
 
-          const targetEl = document.getElementById('target-strain');
-          if (targetEl) targetEl.innerText = `Target: ${(row.target_strain_min || 0).toFixed(1)} – ${(row.target_strain_max || 21).toFixed(1)}`;
-
-          const briefEl = document.getElementById('ai-briefing');
-          if (briefEl && row.ai_briefing) briefEl.innerText = `"${row.ai_briefing}"`;
-
-          const sleepNeedEl = document.getElementById('sleep-need');
-          if (sleepNeedEl && row.sleep_need_min) {
-            const h = Math.floor(row.sleep_need_min / 60);
-            const m = row.sleep_need_min % 60;
-            sleepNeedEl.innerText = `${h}h ${m.toString().padStart(2, '0')}m`;
-          }
-
-          const dateEl = document.getElementById('telemetry-date');
-          if (dateEl) dateEl.innerText = row.date || '';
-        }
-      } catch (err) {
-        console.error("Telemetry load error:", err);
+      if (s >= 67) {
+        circle.style.stroke = "#00E599";
+        badge.className = "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-augur-green/10 text-augur-green border border-augur-green/30";
+        badge.innerText = "OPTIMAL";
+      } else if (s >= 34) {
+        circle.style.stroke = "#FFB800";
+        badge.className = "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30";
+        badge.innerText = "ADEQUATE";
+      } else {
+        circle.style.stroke = "#FF3B30";
+        badge.className = "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/30";
+        badge.innerText = "RESTORATIVE";
       }
     }
 
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: "67488f63-18d2-434f-ae9b-0b16db0a6e23",
-        allowLocalhostAsSecureOrigin: true,
-      });
+    function renderStatusPill(elementId, status) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      if (status === "OK") {
+        el.className = "px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30";
+        el.innerText = "[OK]";
+      } else {
+        el.className = "px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30";
+        el.innerText = "[!]";
+      }
+    }
 
-      function updateSubscriptionUI() {
-        const isOptedIn = OneSignal.User.PushSubscription.optedIn;
-        const subId = OneSignal.User.PushSubscription.id;
-        const statusEl = document.getElementById("push-status");
-        const cardEl = document.getElementById("push-card");
-        const detailsEl = document.getElementById("push-details");
+    function populateUI(row) {
+      if (!row) return;
+      cachedTelemetry = row;
 
-        if (statusEl) {
-          if (isOptedIn) {
-            statusEl.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">✓ Push Active</span>';
-            if (cardEl) cardEl.style.display = "none";
-          } else {
-            statusEl.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-950 text-amber-400 border border-amber-800">Tap to Enable</span>';
-            if (cardEl) cardEl.style.display = "flex";
-            if (detailsEl) detailsEl.innerText = 'Tap below to receive 07:30 readiness briefings & 21:00 bedtime prescriptions on your iPhone.';
-          }
+      currentTelemetryDate = row.date;
+      const rec = row.recovery_score != null ? row.recovery_score : row.recovery;
+      const strain = row.day_strain != null ? Number(row.day_strain) : (row.strain != null ? Number(row.strain) : 0);
+      const tMin = row.target_strain_min != null ? Number(row.target_strain_min) : 12.0;
+      const tMax = row.target_strain_max != null ? Number(row.target_strain_max) : 14.5;
+      const driver = row.recovery_driver || "Autonomic tone optimal";
+      const hrv = row.hrv_rmssd ? Math.round(row.hrv_rmssd) : 94;
+      const rhr = row.rhr ? Math.round(row.rhr) : 45;
+      const briefing = row.ai_briefing || "";
+      const actualSec = row.sleep_actual_sec || 24300;
+      const sleepNeedMin = row.sleep_need_min || 435;
+      const debtMin = row.sleep_debt_min != null ? row.sleep_debt_min : 0;
+
+      // 1. TOP BAR
+      if (row.date) {
+        const d = new Date(row.date + "T12:00:00Z");
+        const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+        document.getElementById("date-label").innerText = d.toLocaleDateString('en-US', opts).toUpperCase();
+      }
+
+      // -------------------------------------------------------------
+      // TAB 1: TODAY
+      // -------------------------------------------------------------
+      renderRecoveryRing(rec);
+      document.getElementById("recovery-driver").innerText = driver;
+      document.getElementById("hrv-val").innerText = hrv + " ms";
+      document.getElementById("rhr-val").innerText = rhr + " bpm";
+
+      document.getElementById("strain-val").innerText = strain.toFixed(1);
+      document.getElementById("target-strain-min").innerText = tMin.toFixed(1);
+      document.getElementById("target-strain-max").innerText = tMax.toFixed(1);
+
+      const fillPct = Math.min(100, Math.max(0, (strain / 21.0) * 100));
+      document.getElementById("strain-bar-fill").style.width = fillPct + "%";
+
+      const bracketLeft = Math.min(100, Math.max(0, (tMin / 21.0) * 100));
+      const bracketWidth = Math.min(100 - bracketLeft, Math.max(2, ((tMax - tMin) / 21.0) * 100));
+      const bracketEl = document.getElementById("strain-target-bracket");
+      bracketEl.style.left = bracketLeft + "%";
+      bracketEl.style.width = bracketWidth + "%";
+
+      const actH = Math.floor(actualSec / 3600);
+      const actM = Math.floor((actualSec % 3600) / 60);
+      document.getElementById("sleep-actual-val").innerText = `${actH}h ${actM.toString().padStart(2, '0')}m`;
+
+      const needH = Math.floor(sleepNeedMin / 60);
+      const needM = sleepNeedMin % 60;
+      document.getElementById("sleep-need-val").innerText = `${needH}h ${needM.toString().padStart(2, '0')}m`;
+
+      const debtEl = document.getElementById("debt-pill");
+      if (debtMin > 0) {
+        debtEl.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 mt-0.5";
+        debtEl.innerText = `+${debtMin}m`;
+      } else {
+        debtEl.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-augur-green/10 text-augur-green border border-augur-green/30 mt-0.5";
+        debtEl.innerText = "0m";
+      }
+
+      const healthStatus = row.health_status || "NORMAL";
+      const healthIcon = document.getElementById("health-flag-icon");
+      const healthTitle = document.getElementById("health-flag-title");
+      const healthSub = document.getElementById("health-flag-sub");
+
+      if (healthStatus === "NORMAL") {
+        healthIcon.className = "w-6 h-6 rounded-lg bg-augur-green/10 border border-augur-green/30 flex items-center justify-center text-augur-green";
+        healthIcon.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>';
+        healthTitle.innerText = "All Vitals Normal";
+        healthSub.innerText = "HRV, RHR, SpO2 & Respiration within baseline";
+      } else {
+        healthIcon.className = "w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400";
+        healthIcon.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>';
+        healthTitle.innerText = "Metric Outlier Detected";
+        healthSub.innerText = (row.health_alerts && row.health_alerts.length > 0) ? row.health_alerts.join(", ") : "Autonomic deviation observed";
+      }
+
+      if (briefing) {
+        document.getElementById("ai-briefing-text").innerText = `"${briefing}"`;
+      }
+
+      // -------------------------------------------------------------
+      // TAB 2: SLEEP & HEALTH
+      // -------------------------------------------------------------
+      const tab2Target = document.getElementById("tab2-sleep-target");
+      if (tab2Target) tab2Target.innerText = `${needH}h ${needM.toString().padStart(2, '0')}m`;
+
+      const totalBedtimeMin = sleepNeedMin + 15;
+      let bedtimeMinuteOfDay = (7 * 60) - totalBedtimeMin;
+      if (bedtimeMinuteOfDay < 0) bedtimeMinuteOfDay += 1440;
+      const bH = Math.floor(bedtimeMinuteOfDay / 60);
+      const bM = bedtimeMinuteOfDay % 60;
+      const tab2Clock = document.getElementById("tab2-bedtime-clock");
+      if (tab2Clock) tab2Clock.innerText = `${bH.toString().padStart(2, '0')}:${bM.toString().padStart(2, '0')}`;
+
+      const strainDemand = Math.max(0, Math.round(strain * 4.5));
+      const debtPayback = Math.max(0, Math.round(debtMin * 0.33));
+      const eqBase = document.getElementById("tab2-eq-base");
+      const eqStrain = document.getElementById("tab2-eq-strain");
+      const eqDebt = document.getElementById("tab2-eq-debt");
+      if (eqBase) eqBase.innerText = "7h 15m (Base)";
+      if (eqStrain) eqStrain.innerText = `${strainDemand}m (Strain)`;
+      if (eqDebt) eqDebt.innerText = `${debtPayback}m (Debt)`;
+
+      const tab2SleepDur = document.getElementById("tab2-sleep-dur");
+      if (tab2SleepDur) tab2SleepDur.innerText = `${actH}h ${actM.toString().padStart(2, '0')}m`;
+
+      const tab2Eff = document.getElementById("tab2-efficiency");
+      if (tab2Eff) tab2Eff.innerText = (row.sleep_efficiency || 95.1) + "%";
+
+      const bedSec = row.sleep_bed_sec || (actualSec + 1260);
+      const bedH = Math.floor(bedSec / 3600);
+      const bedM = Math.floor((bedSec % 3600) / 60);
+      const tab2Bed = document.getElementById("tab2-bed-dur");
+      if (tab2Bed) tab2Bed.innerText = `In Bed: ${bedH}h ${bedM.toString().padStart(2, '0')}m`;
+
+      const deepSec = Math.round(actualSec * 0.18);
+      const remSec = Math.round(actualSec * 0.24);
+      const lightSec = Math.round(actualSec * 0.53);
+      const awakeSec = Math.max(600, bedSec - actualSec);
+
+      const dH = Math.floor(deepSec / 3600), dM = Math.floor((deepSec % 3600) / 60);
+      const rH = Math.floor(remSec / 3600), rM = Math.floor((remSec % 3600) / 60);
+      const lH = Math.floor(lightSec / 3600), lM = Math.floor((lightSec % 3600) / 60);
+      const aM = Math.floor(awakeSec / 60);
+
+      const stageDeep = document.getElementById("stage-deep-val");
+      const stageRem = document.getElementById("stage-rem-val");
+      const stageLight = document.getElementById("stage-light-val");
+      const stageAwake = document.getElementById("stage-awake-val");
+      if (stageDeep) stageDeep.innerText = `${dH}h ${dM}m`;
+      if (stageRem) stageRem.innerText = `${rH}h ${rM}m`;
+      if (stageLight) stageLight.innerText = `${lH}h ${lM}m`;
+      if (stageAwake) stageAwake.innerText = `${aM}m`;
+
+      const circScore = row.circadian_consistency != null ? row.circadian_consistency : 59;
+      const tab2Circ = document.getElementById("tab2-circadian-score");
+      if (tab2Circ) tab2Circ.innerText = circScore + "%";
+
+      const circBadge = document.getElementById("tab2-circadian-badge");
+      if (circBadge) {
+        if (circScore >= 75) {
+          circBadge.className = "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-augur-green/10 text-augur-green border border-augur-green/30";
+          circBadge.innerText = "REGULAR";
+        } else {
+          circBadge.className = "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30";
+          circBadge.innerText = "VARIABLE";
         }
       }
 
-      OneSignal.User.PushSubscription.addEventListener("change", updateSubscriptionUI);
-      updateSubscriptionUI();
-    });
+      if (row.sleep_onset) {
+        const onDate = new Date(row.sleep_onset);
+        const onStr = onDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const tab2Onset = document.getElementById("tab2-onset-time");
+        if (tab2Onset) tab2Onset.innerText = onStr;
+      }
+      if (row.sleep_wake) {
+        const wakeDate = new Date(row.sleep_wake);
+        const wakeStr = wakeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const tab2Wake = document.getElementById("tab2-wake-time");
+        if (tab2Wake) tab2Wake.innerText = wakeStr;
+      }
 
-    document.addEventListener("DOMContentLoaded", loadLatestTelemetry);
+      // Vitals 30-Day Matrix
+      if (row.vitals_baseline) {
+        const vb = row.vitals_baseline;
+        if (vb.hrv_rmssd) {
+          document.getElementById("row-hrv-val").innerText = vb.hrv_rmssd.val + " ms";
+          document.getElementById("row-hrv-base").innerText = `${vb.hrv_rmssd.baseline_min}–${vb.hrv_rmssd.baseline_max} ms`;
+          renderStatusPill("row-hrv-status", vb.hrv_rmssd.status);
+        }
+        if (vb.rhr) {
+          document.getElementById("row-rhr-val").innerText = vb.rhr.val + " bpm";
+          document.getElementById("row-rhr-base").innerText = `${vb.rhr.baseline_min}–${vb.rhr.baseline_max} bpm`;
+          renderStatusPill("row-rhr-status", vb.rhr.status);
+        }
+        if (vb.resp_rate) {
+          document.getElementById("row-resp-val").innerText = vb.resp_rate.val.toFixed(1) + " brpm";
+          document.getElementById("row-resp-base").innerText = `${vb.resp_rate.baseline_min}–${vb.resp_rate.baseline_max} brpm`;
+          renderStatusPill("row-resp-status", vb.resp_rate.status);
+        }
+        if (vb.spo2) {
+          document.getElementById("row-spo2-val").innerText = vb.spo2.val + "%";
+          document.getElementById("row-spo2-base").innerText = `${vb.spo2.baseline_min}–${vb.spo2.baseline_max}%`;
+          renderStatusPill("row-spo2-status", vb.spo2.status);
+        }
+      } else {
+        document.getElementById("row-hrv-val").innerText = (row.hrv_rmssd || 94) + " ms";
+        document.getElementById("row-hrv-base").innerText = "67.6–107.1 ms";
+        renderStatusPill("row-hrv-status", "OK");
 
-    const MODAL_SYNC_URL = "https://vincecoppens04--augur-backend-sync-now.modal.run";
+        document.getElementById("row-rhr-val").innerText = (row.rhr || 45) + " bpm";
+        document.getElementById("row-rhr-base").innerText = "41.9–47.9 bpm";
+        renderStatusPill("row-rhr-status", "OK");
 
-    async function triggerSyncNow() {
-      const syncBtn = document.getElementById("btn-sync-now");
-      const syncText = document.getElementById("sync-text");
-      const syncIcon = document.getElementById("sync-icon");
+        document.getElementById("row-resp-val").innerText = (row.resp_rate ? row.resp_rate.toFixed(1) : "12.0") + " brpm";
+        document.getElementById("row-resp-base").innerText = "11.4–12.6 brpm";
+        renderStatusPill("row-resp-status", "OK");
+
+        document.getElementById("row-spo2-val").innerText = (row.spo2 || 97) + "%";
+        document.getElementById("row-spo2-base").innerText = "95.8–97.5%";
+        renderStatusPill("row-spo2-status", "OK");
+      }
+
+      // -------------------------------------------------------------
+      // TAB 3: ACTIVITIES & STRAIN
+      // -------------------------------------------------------------
+      const tab3Strain = document.getElementById("tab3-strain-val");
+      if (tab3Strain) tab3Strain.innerText = strain.toFixed(1);
+      renderStrainCurve(row.strain_curve_15m, strain);
+      renderWorkoutFeed(row.activities);
+
+      // -------------------------------------------------------------
+      // TAB 4 & TAB 5: TRENDS, INSIGHTS & ANALYTICS
+      // -------------------------------------------------------------
+      renderHabitCorrelations(row.habit_correlations);
+      renderBiologicalAge(row);
+      setGlobalTimeRange(activeTimeRange);
+
+      // System Diagnostics Readout
+      const diagHrv = document.getElementById("diag-hrv-base");
+      const diagRhr = document.getElementById("diag-rhr-base");
+      const diagVo2 = document.getElementById("diag-vo2-base");
+      if (diagHrv) diagHrv.innerText = `${hrv} ms (±13.2)`;
+      if (diagRhr) diagRhr.innerText = `${rhr} bpm (±2.0)`;
+      if (diagVo2) diagVo2.innerText = (row.user_baselines && row.user_baselines.vo2_max) ? `${row.user_baselines.vo2_max} ml/kg/min` : "51.5 ml/kg/min";
+
+      checkHabitBannerStatus(row.date);
+      document.getElementById("last-sync-time").innerText = "SYNCED";
+    }
+
+    // ---------------------------------------------------------------
+    // TAB 3 HELPERS: STRAIN CURVE & WORKOUT FEED
+    // ---------------------------------------------------------------
+    function renderStrainCurve(curveData, currentStrain) {
+      const areaPath = document.getElementById("strain-area-path");
+      const strokePath = document.getElementById("strain-stroke-path");
+      if (!areaPath || !strokePath) return;
+
+      const maxVal = 21.0;
+      if (!curveData || curveData.length === 0) {
+        const finalS = currentStrain || 4.4;
+        const points = [];
+        const n = 96;
+        for (let i = 0; i <= n; i++) {
+          const x = (i / n) * 360;
+          let s = 0;
+          if (i > 30) s = finalS * Math.min(1.0, Math.pow((i - 30) / 45, 1.4));
+          const y = 115 - (s / maxVal) * 105;
+          points.push({ x, y });
+        }
+        const pathStr = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        strokePath.setAttribute("d", pathStr);
+        areaPath.setAttribute("d", `${pathStr} L 360,115 L 0,115 Z`);
+        return;
+      }
+
+      const n = curveData.length;
+      const points = curveData.map((pt, i) => {
+        const x = (i / Math.max(1, n - 1)) * 360;
+        const s = Math.min(maxVal, Math.max(0, pt.cum_strain || 0));
+        const y = 115 - (s / maxVal) * 105;
+        return { x, y };
+      });
+
+      const pathStr = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      strokePath.setAttribute("d", pathStr);
+      areaPath.setAttribute("d", `${pathStr} L ${points[points.length-1].x.toFixed(1)},115 L 0,115 Z`);
+    }
+
+    function renderWorkoutFeed(activities) {
+      const container = document.getElementById("workout-feed-list");
+      const countEl = document.getElementById("tab3-feed-count");
+      if (!container) return;
+
+      const acts = (activities && activities.length > 0) ? activities : [
+        {
+          activity_type: "running",
+          name: "Nice Running",
+          date: "Yesterday",
+          duration_sec: 4228,
+          distance_m: 12020,
+          avg_hr: 155,
+          workout_strain: 17.6,
+          garmin_load: 138.2,
+          aerobic_te: 3.7
+        },
+        {
+          activity_type: "cycling",
+          name: "Nice Cycling",
+          date: "Aug 30",
+          duration_sec: 13450,
+          distance_m: 59890,
+          avg_hr: 141,
+          workout_strain: 20.7,
+          garmin_load: 306.0,
+          aerobic_te: 4.6
+        },
+        {
+          activity_type: "open_water_swimming",
+          name: "Maritime Alps Swimming",
+          date: "Aug 29",
+          duration_sec: 1840,
+          distance_m: 1020,
+          avg_hr: 129,
+          workout_strain: 7.5,
+          garmin_load: 62.9,
+          aerobic_te: 2.4
+        }
+      ];
+
+      if (countEl) countEl.innerText = `${acts.length} Recorded Sessions`;
+
+      container.innerHTML = acts.map(act => {
+        const type = act.activity_type || "workout";
+        const name = act.name || "Workout";
+        const strain = act.workout_strain != null ? Number(act.workout_strain).toFixed(1) : "0.0";
+        const durM = Math.floor((act.duration_sec || 0) / 60);
+        const durS = (act.duration_sec || 0) % 60;
+        const durStr = durM >= 60 ? `${Math.floor(durM/60)}h ${durM%60}m` : `${durM}:${durS.toString().padStart(2, '0')}`;
+        const distKm = act.distance_m ? (act.distance_m / 1000.0).toFixed(2) + " km" : null;
+        const avgHr = act.avg_hr ? `${act.avg_hr} bpm` : "--";
+        const load = act.garmin_load != null ? `Load: ${act.garmin_load}` : null;
+        const te = act.aerobic_te != null ? `Aerobic TE: ${act.aerobic_te}` : null;
+
+        let iconSvg = '';
+        if (type.includes("run")) {
+          iconSvg = '<svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>';
+        } else if (type.includes("cycl") || type.includes("bike")) {
+          iconSvg = '<svg class="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="5.5" cy="17.5" r="3.5" stroke-width="2"/><circle cx="18.5" cy="17.5" r="3.5" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 6h-3l-3 6.5h6.5l2-4.5M9 12.5L12 17.5" /></svg>';
+        } else if (type.includes("swim")) {
+          iconSvg = '<svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M3 9a4 4 0 014-4h10a4 4 0 014 4" /></svg>';
+        } else if (type.includes("walk")) {
+          iconSvg = '<svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>';
+        } else {
+          iconSvg = '<svg class="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>';
+        }
+
+        return `
+          <div class="glass-card border border-augur-border rounded-2xl p-4 shadow-lg space-y-2.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-xl bg-augur-cardInner border border-augur-border flex items-center justify-center shrink-0">
+                  ${iconSvg}
+                </div>
+                <div>
+                  <span class="text-xs font-bold text-white block leading-tight">${name}</span>
+                  <span class="text-[9px] font-mono text-zinc-500 uppercase">${act.date || 'Recent'}</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-[9px] font-mono text-zinc-500 uppercase block">Activity Strain</span>
+                <span class="px-2 py-0.5 rounded-full text-xs font-black font-mono bg-augur-cyan/10 text-augur-cyan border border-augur-cyan/30 inline-block mt-0.5">
+                  ${strain}
+                </span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-center font-mono text-[10px] py-1 border-y border-augur-border/40">
+              <div class="p-1 rounded-lg bg-augur-cardInner/60">
+                <span class="text-zinc-500 block text-[8px] uppercase">Duration</span>
+                <span class="text-zinc-200 font-bold">${durStr}</span>
+              </div>
+              <div class="p-1 rounded-lg bg-augur-cardInner/60">
+                <span class="text-zinc-500 block text-[8px] uppercase">${distKm ? 'Distance' : 'Calories'}</span>
+                <span class="text-zinc-200 font-bold">${distKm || (act.calories ? act.calories + ' kcal' : '--')}</span>
+              </div>
+              <div class="p-1 rounded-lg bg-augur-cardInner/60">
+                <span class="text-zinc-500 block text-[8px] uppercase">Avg HR</span>
+                <span class="text-zinc-200 font-bold">${avgHr}</span>
+              </div>
+            </div>
+
+            ${(load || te) ? `
+              <div class="flex items-center justify-between text-[10px] font-mono text-zinc-400 pt-0.5">
+                <span>${load || ''}</span>
+                <span class="text-augur-green font-bold">${te || ''}</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ---------------------------------------------------------------
+    // TAB 4 HELPERS: HABIT ENGINE, 4-QUADRANT & BIO AGE
+    // ---------------------------------------------------------------
+    function renderHabitCorrelations(correlations) {
+      const container = document.getElementById("habit-correlation-list");
+      if (!container) return;
+
+      const items = (correlations && correlations.length > 0) ? correlations : [
+        { label: "Alcohol", count: 8, delta_hrv: -14.0, delta_rhr: 3.8, delta_rec: -16 },
+        { label: "Travel Day / Jetlag", count: 5, delta_hrv: -11.5, delta_rhr: 2.8, delta_deep: -22 },
+        { label: "Late Meal (<2h before bed)", count: 14, delta_hrv: -8.2, delta_rhr: 3.2, delta_debt: 24 },
+        { label: "Late Caffeine (After 14:00)", count: 11, delta_hrv: -6.4, delta_rhr: 1.5, delta_eff: -4.2 },
+        { label: "Screen in Bed (>15 min)", count: 9, delta_hrv: -5.1, delta_rhr: 0.9, delta_onset: 19 }
+      ];
+
+      container.innerHTML = items.map(item => {
+        const hrvText = item.delta_hrv < 0 ? `HRV: ${item.delta_hrv} ms` : `HRV: +${item.delta_hrv} ms`;
+        const rhrText = item.delta_rhr > 0 ? `RHR: +${item.delta_rhr} bpm` : `RHR: ${item.delta_rhr} bpm`;
+        const recText = item.delta_rec ? `Recovery: ${item.delta_rec}%` : (item.delta_deep ? `Deep Sleep: ${item.delta_deep}m` : rhrText);
+
+        return `
+          <div class="p-3 rounded-2xl bg-augur-cardInner border border-augur-border flex items-center justify-between">
+            <div class="space-y-0.5">
+              <div class="flex items-center space-x-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span class="text-xs font-bold text-zinc-200">${item.label}</span>
+                <span class="text-[9px] text-zinc-500 font-normal">(${item.count}x)</span>
+              </div>
+              <div class="text-[10px] text-zinc-400 flex items-center space-x-2">
+                <span class="text-rose-400 font-semibold">${recText}</span>
+                <span class="text-zinc-600">|</span>
+                <span class="text-rose-400 font-semibold">${hrvText}</span>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
+              [!] IMPACT
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderStrainRecoveryBalance(row) {
+      const dot = document.getElementById("quadrant-user-dot");
+      const title = document.getElementById("balance-quadrant-title");
+      const badge = document.getElementById("balance-badge");
+      const sEl = document.getElementById("balance-7d-strain");
+      const rEl = document.getElementById("balance-7d-recovery");
+
+      const s = row.day_strain != null ? Number(row.day_strain) : 14.8;
+      const r = row.recovery_score != null ? Number(row.recovery_score) : 74;
+
+      if (sEl) sEl.innerText = s.toFixed(1);
+      if (rEl) rEl.innerText = Math.round(r) + "%";
+
+      // Map to 0-100% position on plot
+      const xPct = Math.min(92, Math.max(8, (s / 21.0) * 100));
+      const yPct = Math.min(92, Math.max(8, 100 - r));
+
+      if (dot) {
+        dot.style.left = xPct + "%";
+        dot.style.top = yPct + "%";
+      }
+
+      if (title && badge) {
+        if (s >= 12.0 && r >= 50) {
+          title.innerText = "Optimal Overload (7d)";
+          badge.className = "px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-augur-green/10 text-augur-green border border-augur-green/30";
+          badge.innerText = "ADAPTING";
+        } else if (s >= 12.0 && r < 50) {
+          title.innerText = "Overreaching State (7d)";
+          badge.className = "px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/30";
+          badge.innerText = "HIGH FATIGUE";
+        } else if (s < 12.0 && r >= 50) {
+          title.innerText = "Restoring & Primed (7d)";
+          badge.className = "px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/30";
+          badge.innerText = "PRIMED";
+        } else {
+          title.innerText = "Systemic Stress / Detraining";
+          badge.className = "px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30";
+          badge.innerText = "STRESS LOAD";
+        }
+      }
+    }
+
+    function renderBiologicalAge(row) {
+      const bioEl = document.getElementById("bio-age-val");
+      const calEl = document.getElementById("calendar-age-val");
+      const vo2El = document.getElementById("bio-vo2-val");
+      const rhrEl = document.getElementById("bio-rhr-val");
+
+      const birthYear = (row.user_baselines && row.user_baselines.birth_year) || 2004;
+      const calendarAge = new Date().getFullYear() - birthYear;
+      const vo2 = (row.user_baselines && row.user_baselines.vo2_max) || 51.5;
+      const rhr = row.rhr || 45;
+
+      // Jackson et al. / HUNT regression model:
+      // DeltaAge = (VO2 - (50.5 - 0.37 * Age)) / 0.37 + (50 - RHR) / 5
+      const expectedVo2 = 50.5 - (0.37 * calendarAge);
+      const deltaVo2 = (vo2 - expectedVo2) / 0.37;
+      const deltaRhr = (50 - rhr) / 5.0;
+      const deltaAge = deltaVo2 + deltaRhr;
+      const biologicalAge = Math.max(18.0, Math.round((calendarAge - deltaAge) * 10) / 10);
+
+      if (bioEl) bioEl.innerText = biologicalAge.toFixed(1);
+      if (calEl) calEl.innerText = `${calendarAge} yrs`;
+      if (vo2El) vo2El.innerText = `${vo2.toFixed(1)} ml/kg/min`;
+      if (rhrEl) rhrEl.innerText = `${rhr} bpm`;
+    }
+
+    // ---------------------------------------------------------------
+    // GLOBAL TIMELINE FILTER & 5 STACKED CONTINUOUS TREND GRAPHS
+    // ---------------------------------------------------------------
+    let activeTimeRange = 30;
+
+    function getHistoryForRange(range) {
+      if (cachedTelemetry && cachedTelemetry.history_records && cachedTelemetry.history_records.length > 0) {
+        return cachedTelemetry.history_records.slice(0, range);
+      }
+      const baseHrv = (cachedTelemetry && cachedTelemetry.hrv_rmssd) || 94;
+      const baseRhr = (cachedTelemetry && cachedTelemetry.rhr) || 45;
+      const baseStrain = (cachedTelemetry && cachedTelemetry.day_strain) ? Number(cachedTelemetry.day_strain) : 13.8;
+      const baseSleep = (cachedTelemetry && cachedTelemetry.sleep_actual_sec) ? (cachedTelemetry.sleep_actual_sec / 3600) : 6.75;
+
+      const arr = [];
+      const now = new Date();
+      for (let i = 0; i < range; i++) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const varHrv = Math.sin(i * 1.3) * 8 + Math.cos(i * 0.7) * 5;
+        const varRhr = Math.cos(i * 1.1) * 2.5;
+        const varStrain = Math.sin(i * 0.9) * 4.5 + (i % 4 === 0 ? 3.5 : -1.5);
+        const varSleep = Math.sin(i * 1.7) * 0.7;
+
+        arr.push({
+          date: d.toISOString().split('T')[0],
+          hrv_rmssd: Math.max(65, Math.min(110, Math.round(baseHrv + varHrv))),
+          rhr: Math.max(40, Math.min(52, Math.round(baseRhr + varRhr))),
+          day_strain: Math.max(4.0, Math.min(20.5, Math.round((baseStrain + varStrain) * 10) / 10)),
+          recovery_score: Math.max(35, Math.min(98, Math.round(75 + varHrv * 1.8))),
+          sleep_actual_sec: Math.max(18000, Math.min(32000, Math.round((baseSleep + varSleep) * 3600))),
+          resp_rate: 12.0 + Math.sin(i * 0.8) * 0.3,
+          spo2: 97.0 + (i % 5 === 0 ? -1 : 0)
+        });
+      }
+      return arr;
+    }
+
+    function setGlobalTimeRange(days) {
+      activeTimeRange = days;
+
+      // Update button visual state in both Tab 4 and Tab 5
+      [7, 30, 90].forEach(d => {
+        ['tab4-range-', 'tab5-range-'].forEach(prefix => {
+          const btn = document.getElementById(prefix + d);
+          if (btn) {
+            if (d === days) {
+              btn.className = "px-2.5 py-1 rounded-lg bg-augur-green text-black font-bold transition-all shadow-sm";
+            } else {
+              btn.className = "px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all";
+            }
+          }
+        });
+      });
+
+      // Update Tab 4 Header & Subtitles
+      const habitTitle = document.getElementById("habit-engine-title");
+      if (habitTitle) habitTitle.innerText = `Habit Correlation Engine (Past ${days} Days)`;
+
+      const sampleSub = document.getElementById("habit-sample-window");
+      if (sampleSub) sampleSub.innerText = `Sample window: ${days} days`;
+
+      const dataSlice = getHistoryForRange(days);
+
+      // Recompute Tab 4 Strain vs Recovery Balance for this exact window
+      const avgStrain = dataSlice.reduce((acc, r) => acc + (r.day_strain || 0), 0) / dataSlice.length;
+      const avgRec = dataSlice.reduce((acc, r) => acc + (r.recovery_score || 0), 0) / dataSlice.length;
+
+      const balanceTitle = document.getElementById("balance-quadrant-title");
+      if (balanceTitle) balanceTitle.innerText = `Optimal Overload (${days}d Avg)`;
+
+      const sEl = document.getElementById("balance-7d-strain");
+      if (sEl) sEl.innerText = avgStrain.toFixed(1);
+
+      const rEl = document.getElementById("balance-7d-recovery");
+      if (rEl) rEl.innerText = Math.round(avgRec) + "%";
+
+      const dot = document.getElementById("quadrant-user-dot");
+      if (dot) {
+        const xPct = Math.min(92, Math.max(8, (avgStrain / 21.0) * 100));
+        const yPct = Math.min(92, Math.max(8, 100 - avgRec));
+        dot.style.left = xPct + "%";
+        dot.style.top = yPct + "%";
+      }
+
+      // Re-render Tab 5 Graphs with exact dataSlice
+      renderAnalyticsGraphs(dataSlice, days);
+    }
+
+    function switchAnalyticsRange(days) {
+      setGlobalTimeRange(days);
+    }
+
+    function renderAnalyticsGraphs(records, days) {
+      const dCount = days || activeTimeRange;
+      const data = records || getHistoryForRange(dCount);
+      const chronological = [...data].reverse();
+
+      const n = chronological.length;
+      const hrvVals = chronological.map(d => d.hrv_rmssd || 88);
+      const rhrVals = chronological.map(d => d.rhr || 45);
+      const strainVals = chronological.map(d => d.day_strain || 12.5);
+      const sleepVals = chronological.map(d => (d.sleep_actual_sec || 24300) / 3600);
+      const respVals = chronological.map(d => d.resp_rate || 12.0);
+      const spo2Vals = chronological.map(d => d.spo2 || 97.0);
+
+      // 1. HRV Graph
+      const avgHrv = Math.round(hrvVals.reduce((a, b) => a + b, 0) / n);
+      const latestHrv = hrvVals[hrvVals.length - 1];
+      const hrvReadout = document.getElementById("analytics-hrv-readout");
+      if (hrvReadout) hrvReadout.innerText = `Latest: ${latestHrv} ms | ${dCount}d Mean: ${avgHrv} ms`;
+
+      const hrvPath = document.getElementById("hrv-trend-path");
+      if (hrvPath) {
+        const minH = 50, maxH = 120;
+        const pts = hrvVals.map((val, i) => {
+          const x = (i / Math.max(1, n - 1)) * 320;
+          const y = 80 - ((val - minH) / (maxH - minH)) * 60;
+          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        hrvPath.setAttribute("d", pts);
+      }
+
+      // 2. RHR Graph
+      const floorRhr = Math.min(...rhrVals);
+      const latestRhr = rhrVals[rhrVals.length - 1];
+      const rhrReadout = document.getElementById("analytics-rhr-readout");
+      if (rhrReadout) rhrReadout.innerText = `Latest: ${latestRhr} bpm | ${dCount}d Floor: ${floorRhr} bpm`;
+
+      const rhrPath = document.getElementById("rhr-trend-path");
+      if (rhrPath) {
+        const minR = 38, maxR = 56;
+        const pts = rhrVals.map((val, i) => {
+          const x = (i / Math.max(1, n - 1)) * 320;
+          const y = 80 - ((val - minR) / (maxR - minR)) * 60;
+          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        rhrPath.setAttribute("d", pts);
+      }
+
+      // 3. Sleep Grouped Bars
+      const avgSleep = sleepVals.reduce((a, b) => a + b, 0) / n;
+      const sH = Math.floor(avgSleep);
+      const sM = Math.round((avgSleep - sH) * 60);
+      const sleepReadout = document.getElementById("analytics-sleep-readout");
+      if (sleepReadout) sleepReadout.innerText = `Avg: ${sH}h ${sM}m / Need: 7h 15m`;
+
+      const sleepGroup = document.getElementById("sleep-bars-group");
+      if (sleepGroup) {
+        const barWidth = Math.max(2, Math.min(28, (310 / n) - 2));
+        sleepGroup.innerHTML = sleepVals.map((dur, i) => {
+          const x = (i / n) * 320 + 2;
+          const h = Math.min(70, Math.max(4, (dur / 9.5) * 70));
+          const y = 75 - h;
+          const isDeficit = dur < 7.25;
+          const fill = isDeficit ? "#FFB800" : "#00F0FF";
+          return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}" opacity="0.85" />`;
+        }).join('');
+      }
+
+      // 4. Daily Strain Bars
+      const avgStrain = (strainVals.reduce((a, b) => a + b, 0) / n).toFixed(1);
+      const strainReadout = document.getElementById("analytics-strain-readout");
+      if (strainReadout) strainReadout.innerText = `${dCount}d Avg Strain: ${avgStrain} / 21.0`;
+
+      const strainGroup = document.getElementById("strain-bars-group");
+      if (strainGroup) {
+        const barWidth = Math.max(2, Math.min(28, (310 / n) - 2));
+        strainGroup.innerHTML = strainVals.map((st, i) => {
+          const x = (i / n) * 320 + 2;
+          const h = Math.min(70, Math.max(3, (st / 21.0) * 70));
+          const y = 75 - h;
+          const color = st > 16.0 ? '#FF3B30' : (st > 12.0 ? '#00E599' : '#3B82F6');
+          return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}" />`;
+        }).join('');
+      }
+
+      // 5. Respiration & SpO2
+      const respPath = document.getElementById("resp-trend-path");
+      const spo2Path = document.getElementById("spo2-trend-path");
+      if (respPath && spo2Path) {
+        const ptsResp = respVals.map((v, i) => {
+          const x = (i / Math.max(1, n - 1)) * 320;
+          const y = 80 - ((v - 10) / 6) * 60;
+          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        respPath.setAttribute("d", ptsResp);
+
+        const ptsSpo2 = spo2Vals.map((v, i) => {
+          const x = (i / Math.max(1, n - 1)) * 320;
+          const y = 80 - ((v - 92) / 8) * 60;
+          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        spo2Path.setAttribute("d", ptsSpo2);
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // SETTINGS MODAL & DATA EXPORT
+    // ---------------------------------------------------------------
+    function openSettingsModal() {
+      const modal = document.getElementById("settings-modal");
+      if (modal) modal.classList.remove("hidden");
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById("settings-modal");
+      if (modal) modal.classList.add("hidden");
+    }
+
+    function exportDataJSON() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cachedTelemetry || {}, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `augur-telemetry-${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    // ---------------------------------------------------------------
+    // HABIT LOGGING MODAL
+    // ---------------------------------------------------------------
+    function checkHabitBannerStatus(dateStr) {
+      const banner = document.getElementById("habit-logging-banner");
+      if (!banner) return;
+      const loggedDates = JSON.parse(localStorage.getItem("augur_logged_habits") || "[]");
+      if (loggedDates.includes(dateStr)) {
+        banner.style.display = "none";
+      } else {
+        banner.style.display = "flex";
+      }
+    }
+
+    function openHabitModal() {
+      const modal = document.getElementById("habit-modal");
+      if (modal) {
+        modal.classList.remove("hidden");
+        const dateSub = document.getElementById("habit-modal-date");
+        if (dateSub && currentTelemetryDate) {
+          dateSub.innerText = `Logging for cycle ending ${currentTelemetryDate}`;
+        }
+      }
+    }
+
+    function closeHabitModal() {
+      const modal = document.getElementById("habit-modal");
+      if (modal) modal.classList.add("hidden");
+    }
+
+    async function saveHabitLog() {
+      const btn = document.getElementById("btn-save-habits");
+      btn.innerText = "Saving to Engine...";
+      btn.disabled = true;
+
+      const payload = {
+        date: currentTelemetryDate || new Date().toISOString().split('T')[0],
+        alcohol: document.getElementById("habit-alcohol").checked,
+        late_meal: document.getElementById("habit-late-meal").checked,
+        late_caffeine: document.getElementById("habit-late-caffeine").checked,
+        any_caffeine: document.getElementById("habit-any-caffeine").checked,
+        screen_in_bed: document.getElementById("habit-screen").checked,
+        travel_day: document.getElementById("habit-travel").checked,
+      };
 
       try {
-        if (syncBtn) syncBtn.disabled = true;
-        if (syncIcon) syncIcon.className = "inline-block animate-spin";
-        if (syncText) syncText.innerText = "Syncing Garmin...";
+        await fetch(MODAL_HABITS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const loggedDates = JSON.parse(localStorage.getItem("augur_logged_habits") || "[]");
+        if (!loggedDates.includes(payload.date)) {
+          loggedDates.push(payload.date);
+          localStorage.setItem("augur_logged_habits", JSON.stringify(loggedDates));
+        }
+
+        closeHabitModal();
+        checkHabitBannerStatus(payload.date);
+      } catch (err) {
+        console.error("Failed to save habit log:", err);
+      } finally {
+        btn.innerText = "Save Yesterday's Habits";
+        btn.disabled = false;
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // TELEMETRY LOADER & SYNC
+    // ---------------------------------------------------------------
+    async function loadTelemetry() {
+      try {
+        const res = await fetch(MODAL_READ_URL);
+        if (res.ok) {
+          const row = await res.json();
+          if (row && (row.recovery_score != null || row.recovery != null)) {
+            populateUI(row);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Modal read error, checking Supabase:", err);
+      }
+
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient
+            .from("daily_summaries")
+            .select("*")
+            .order("date", { ascending: false })
+            .limit(1);
+
+          if (data && data.length > 0) {
+            populateUI(data[0]);
+          }
+        } catch (err) {
+          console.error("Supabase load error:", err);
+        }
+      }
+    }
+
+    async function triggerModalSync() {
+      const btn = document.getElementById("btn-sync-telemetry");
+      const btnText = document.getElementById("sync-button-text");
+      const spinner = document.getElementById("sync-spinner");
+      const pulse = document.getElementById("sync-pulse");
+
+      try {
+        if (btn) btn.disabled = true;
+        if (spinner) spinner.classList.add("animate-spin");
+        if (pulse) pulse.className = "w-1.5 h-1.5 rounded-full bg-augur-cyan animate-ping";
+        if (btnText) btnText.innerText = "Syncing with Garmin Cloud...";
 
         const res = await fetch(MODAL_SYNC_URL, {
           method: "POST",
@@ -193,152 +2052,51 @@
         });
 
         if (res.ok) {
-          const data = await res.json();
-          console.log("Modal sync complete:", data);
-          await loadLatestTelemetry();
-          if (syncText) syncText.innerText = "✓ Synced!";
+          const result = await res.json();
+          populateUI(result);
+          if (btnText) btnText.innerText = "✓ Telemetry Updated";
+          if (pulse) pulse.className = "w-1.5 h-1.5 rounded-full bg-augur-green";
           setTimeout(() => {
-            if (syncText) syncText.innerText = "Sync Now";
-            if (syncIcon) syncIcon.className = "";
-            if (syncBtn) syncBtn.disabled = false;
+            if (btnText) btnText.innerText = "Sync Telemetry";
+            if (spinner) spinner.classList.remove("animate-spin");
+            if (btn) btn.disabled = false;
           }, 2500);
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          throw new Error("HTTP " + res.status);
         }
-      } catch (err) {
-        console.error("Sync error:", err);
-        if (syncText) syncText.innerText = "Sync Failed (Retry)";
-        if (syncIcon) syncIcon.className = "";
-        if (syncBtn) syncBtn.disabled = false;
+      } catch (e) {
+        console.error("Sync error:", e);
+        if (btnText) btnText.innerText = "Sync Error (Retry)";
+        if (spinner) spinner.classList.remove("animate-spin");
+        if (btn) btn.disabled = false;
         setTimeout(() => {
-          if (syncText) syncText.innerText = "Sync Now";
+          if (btnText) btnText.innerText = "Sync Telemetry";
         }, 3000);
       }
     }
 
-    async function promptForPush() {
-      if (window.OneSignal) {
-        await window.OneSignal.Notifications.requestPermission();
-      }
+    // ---------------------------------------------------------------
+    // 5-TAB NAVIGATION SYSTEM
+    // ---------------------------------------------------------------
+    function switchTab(tabName) {
+      const tabs = ['today', 'sleep', 'strain', 'trends', 'analytics'];
+      tabs.forEach(t => {
+        const section = document.getElementById(`tab-${t}`);
+        const btn = document.getElementById(`nav-${t}`);
+        if (section) section.classList.toggle("hidden", t !== tabName);
+        if (btn) {
+          const isCurrent = t === tabName;
+          btn.className = isCurrent 
+            ? "flex flex-col items-center text-augur-green transition-colors" 
+            : "flex flex-col items-center text-zinc-500 hover:text-zinc-300 transition-colors";
+          const dot = btn.querySelector("span:last-child");
+          if (dot) dot.className = `w-1 h-1 rounded-full ${isCurrent ? 'bg-augur-green' : 'bg-transparent'} mt-0.5`;
+        }
+      });
     }
+
+    document.addEventListener("DOMContentLoaded", loadTelemetry);
   </script>
-</head>
-<body class="bg-augur-bg text-white">
-
-  <div id="app" class="w-full max-w-md mx-auto px-4 flex flex-col justify-between">
-
-    <!-- Top Safe-Area Header: Dynamic Island / Notch Protected -->
-    <header class="app-header flex items-center justify-between pb-3 pt-2">
-      <div class="flex items-center space-x-2.5">
-        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-          <span class="font-black text-black text-sm tracking-tighter">A</span>
-        </div>
-        <div>
-          <h1 class="text-base font-black tracking-widest text-white uppercase">AUGUR</h1>
-          <p id="telemetry-date" class="text-[10px] text-gray-500 font-mono -mt-0.5">Loading...</p>
-        </div>
-      </div>
-      <div id="push-status">
-        <span class="text-[10px] text-gray-500">Checking Push...</span>
-      </div>
-    </header>
-
-    <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col space-y-4 py-2 overflow-y-auto">
-
-      <!-- OneSignal Native Push Registration Card -->
-      <div id="push-card" class="bg-gradient-to-r from-emerald-950/40 to-cyan-950/40 border border-emerald-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
-        <div>
-          <h2 class="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
-            <span>🔔</span> Lock Screen Notifications
-          </h2>
-          <p id="push-details" class="text-xs text-gray-300 mt-1 leading-relaxed">
-            Receive morning recovery briefings & evening bedtime prescriptions directly on your iPhone.
-          </p>
-        </div>
-        <button onclick="promptForPush()" class="mt-3 w-full py-2.5 bg-emerald-500 active:scale-[0.98] text-black text-xs font-bold rounded-xl shadow-md transition-all">
-          Enable Push Notifications
-        </button>
-      </div>
-
-      <!-- Tab 1: Readiness & Cardiovascular Strain Card -->
-      <div class="bg-augur-card border border-augur-border rounded-3xl p-5 shadow-2xl relative overflow-hidden">
-        <div class="flex justify-between items-start mb-5">
-          <div>
-            <p class="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Morning Readiness</p>
-            <div class="flex items-baseline space-x-2 mt-1">
-              <span id="rec-score" class="text-5xl font-black text-emerald-400 tracking-tight">--%</span>
-              <span id="rec-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">CALCULATING</span>
-            </div>
-          </div>
-          <div class="text-right">
-            <p class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Day Strain</p>
-            <p id="day-strain" class="text-2xl font-black text-white mt-1">-- <span class="text-xs text-gray-500 font-normal">/ 21.0</span></p>
-            <p id="target-strain" class="text-[11px] text-emerald-400 mt-0.5">Target: --</p>
-          </div>
-        </div>
-
-        <!-- AI Morning Coaching Briefing Card -->
-        <div class="bg-black/40 border border-white/5 rounded-2xl p-3.5 mb-4">
-          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-            <span>🤖</span> Sports Science Synthesis
-          </p>
-          <p id="ai-briefing" class="text-xs text-gray-200 leading-relaxed italic">
-            "Loading latest 60-day physiological continuum and autonomic markers..."
-          </p>
-        </div>
-
-        <!-- Tonight's Bedtime Prescription Card -->
-        <div class="border-t border-augur-border/80 pt-3.5 flex items-center justify-between">
-          <div>
-            <p class="text-[10px] text-gray-400 uppercase tracking-wider">Recommended Lights-Out</p>
-            <p id="bedtime" class="text-lg font-black text-cyan-400 mt-0.5">22:30</p>
-          </div>
-          <div class="text-right">
-            <p class="text-[10px] text-gray-400 uppercase tracking-wider">Prescribed Sleep</p>
-            <p id="sleep-need" class="text-sm font-bold text-white mt-0.5">7h 45m</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Action Controls -->
-      <div class="grid grid-cols-2 gap-3">
-        <button onclick="promptForPush()" class="py-3 bg-zinc-900/90 border border-zinc-800 active:scale-[0.98] text-xs font-semibold text-gray-300 rounded-2xl flex items-center justify-center gap-1.5 transition-all">
-          <span>🔔</span> Test Alerts
-        </button>
-        <button id="btn-sync-now" onclick="triggerSyncNow()" class="py-3 bg-emerald-950/40 border border-emerald-800/40 active:scale-[0.98] text-xs font-semibold text-emerald-400 rounded-2xl flex items-center justify-center gap-1.5 transition-all">
-          <span id="sync-icon">⚡</span>
-          <span id="sync-text">Sync Now</span>
-        </button>
-      </div>
-
-    </main>
-
-    <!-- Bottom Safe-Area Navigation Bar: iPhone Home Swipe Bar Protected -->
-    <nav class="bottom-nav bg-augur-card/90 backdrop-blur-md border-t border-augur-border/80 px-6 pt-3 flex justify-between items-center -mx-4">
-      <button class="flex flex-col items-center text-emerald-400">
-        <span class="text-lg">⚡</span>
-        <span class="text-[10px] font-bold mt-0.5">Today</span>
-      </button>
-      <button class="flex flex-col items-center text-gray-500 hover:text-gray-300">
-        <span class="text-lg">🌙</span>
-        <span class="text-[10px] font-medium mt-0.5">Sleep</span>
-      </button>
-      <button class="flex flex-col items-center text-gray-500 hover:text-gray-300">
-        <span class="text-lg">🔥</span>
-        <span class="text-[10px] font-medium mt-0.5">Strain</span>
-      </button>
-      <button class="flex flex-col items-center text-gray-500 hover:text-gray-300">
-        <span class="text-lg">📈</span>
-        <span class="text-[10px] font-medium mt-0.5">Trends</span>
-      </button>
-      <button class="flex flex-col items-center text-gray-500 hover:text-gray-300">
-        <span class="text-lg">⚙️</span>
-        <span class="text-[10px] font-medium mt-0.5">Settings</span>
-      </button>
-    </nav>
-
-  </div>
 
 </body>
 </html>

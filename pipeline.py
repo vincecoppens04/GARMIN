@@ -56,24 +56,40 @@ USER_TIMEZONE = ZoneInfo("Europe/Brussels")
 def get_garmin_client() -> Garmin:
     token_dir = Path(TOKENSTORE).expanduser()
     token_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 1. Try to reuse cached OAuth tokens (NO EMAIL SENT)
     try:
         garmin = Garmin()
         garmin.login(str(token_dir))
+        print("✓ Authenticated using cached Garmin session tokens.")
         return garmin
-    except Exception:
-        email = os.getenv("GARMIN_EMAIL")
-        password = os.getenv("GARMIN_PASSWORD")
-        garmin = Garmin(
-            email=email,
-            password=password,
-            prompt_mfa=lambda: input("Enter Garmin MFA code: ").strip(),
-        )
-        garmin.login(str(token_dir))
-        try:
+    except Exception as e:
+        print(f"[Notice] Cached session missing or expired ({e}). Logging in with credentials...")
+
+    # 2. Fallback: Full login with credentials (TRIGGERS EMAIL)
+    email = os.getenv("GARMIN_EMAIL") or os.getenv("EMAIL")
+    password = os.getenv("GARMIN_PASSWORD") or os.getenv("PASSWORD")
+    
+    garmin = Garmin(
+        email=email,
+        password=password,
+        prompt_mfa=lambda: input("Enter Garmin MFA code: ").strip(),
+    )
+    garmin.login(str(token_dir))
+
+    # 3. Correctly save tokens so subsequent syncs reuse them
+    try:
+        if hasattr(garmin, "client") and hasattr(garmin.client, "dump"):
             garmin.client.dump(str(token_dir))
-        except Exception:
-            pass
-        return garmin
+        elif hasattr(garmin, "garth") and hasattr(garmin.garth, "dump"):
+            garmin.garth.dump(str(token_dir))
+        elif hasattr(garmin, "dump"):
+            garmin.dump(str(token_dir))
+        print(f"✓ Session tokens successfully saved to {token_dir}")
+    except Exception as dump_err:
+        print(f"[Warning] Failed to persist session tokens: {dump_err}")
+
+    return garmin
 
 def get_supabase_client() -> tuple[Client, str]:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
