@@ -15,6 +15,7 @@ app = modal.App("augur-backend")
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
+        "fastapi",
         "garminconnect>=0.3.2",
         "curl_cffi>=0.7.0",
         "supabase>=2.0.0",
@@ -70,7 +71,7 @@ def evening_sync():
 # =====================================================================
 
 @app.function(image=image, secrets=[augur_secret], timeout=180)
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def sync_now():
     """
     Public HTTPS Webhook endpoint triggered when tapping 'Sync Now' in AUGUR on iPhone.
