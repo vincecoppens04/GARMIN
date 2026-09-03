@@ -1,11 +1,10 @@
 {
-  "name": "Garmin Recovery",
-  "short_name": "Recovery",
-  "description": "Garmin Recovery & Prescription Engine",
+  "name": "AUGUR",
+  "short_name": "AUGUR",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0c",
-  "theme_color": "#10b981",
+  "background_color": "#090A0F",
+  "theme_color": "#090A0F",
   "orientation": "portrait",
   "icons": [
     {
@@ -19,6 +18,11 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }

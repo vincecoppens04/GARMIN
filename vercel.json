@@ -10,7 +10,15 @@
       "use": "@vercel/static"
     },
     {
+      "src": "manifest.webmanifest",
+      "use": "@vercel/static"
+    },
+    {
       "src": "manifest.json",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "apple-touch-icon.png",
       "use": "@vercel/static"
     },
     {
@@ -33,11 +41,22 @@
       "dest": "/OneSignalSDKWorker.js"
     },
     {
+      "src": "/manifest.webmanifest",
+      "headers": {
+        "Content-Type": "application/manifest+json"
+      },
+      "dest": "/manifest.webmanifest"
+    },
+    {
       "src": "/manifest.json",
       "headers": {
         "Content-Type": "application/manifest+json"
       },
       "dest": "/manifest.json"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "dest": "/apple-touch-icon.png"
     },
     {
       "src": "/",
