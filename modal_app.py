@@ -171,13 +171,13 @@ def get_telemetry():
     
     latest["vitals_baseline"] = vitals_baseline
 
-    # Fetch recent activities for Tab 3 (Activities & Strain)
+    # Fetch recent activities for Tab 3 (Activities & Strain) - Limited to 5
     act_res = (
         supabase.table("activities")
         .select("*")
         .eq("user_id", user_id)
         .order("start_time", desc=True)
-        .limit(10)
+        .limit(5)
         .execute()
     )
     latest["activities"] = act_res.data or []
@@ -196,8 +196,8 @@ def get_telemetry():
 
     # Fetch habit correlations for Tab 4
     try:
-        from pipeline import compute_habit_correlations
-        latest["habit_correlations"] = compute_habit_correlations(supabase, user_id)
+        from pipeline import calculate_habit_correlations
+        latest["habit_correlations"] = calculate_habit_correlations(supabase, user_id)
     except Exception:
         latest["habit_correlations"] = []
 
@@ -224,5 +224,18 @@ def log_habits(data: dict):
     }
     res = supabase.table("habit_logs").upsert(row).execute()
     return {"status": "success", "data": res.data}
+
+@app.function(image=image, secrets=[augur_secret], timeout=30)
+@modal.fastapi_endpoint(method="POST")
+def send_test_notification():
+    """Triggers an immediate test push notification to the user's phone."""
+    from pipeline import send_phone_notification
+    success = send_phone_notification(
+        title="AUGUR • Test Notification",
+        message="Recovery: 81% (Optimal) | HRV: 94 ms | Day Target: 16.8–19.8 Strain. Everything is running smoothly!",
+        priority="high",
+        tags=["green_circle", "muscle", "zap"]
+    )
+    return {"status": "success", "delivered": success}
 
 

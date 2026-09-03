@@ -134,7 +134,7 @@
     <!-- ================================================================= -->
     <!-- TAB 1: TODAY (COMMAND CENTER) -->
     <!-- ================================================================= -->
-    <main id="tab-today" class="flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+    <main id="tab-today" class="flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
 
       <!-- 1. MORNING RECOVERY HERO CARD -->
       <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-2xl relative flex flex-col items-center">
@@ -334,7 +334,7 @@
     <!-- ================================================================= -->
     <!-- TAB 2: SLEEP & HEALTH (VITALS & READINESS) -->
     <!-- ================================================================= -->
-    <main id="tab-sleep" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+    <main id="tab-sleep" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
 
       <!-- Header Banner -->
       <div class="flex items-center justify-between px-1">
@@ -533,7 +533,7 @@
     <!-- ================================================================= -->
     <!-- TAB 3: ACTIVITIES & STRAIN (EXERTION & WORKOUTS) -->
     <!-- ================================================================= -->
-    <main id="tab-strain" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+    <main id="tab-strain" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
 
       <div class="flex items-center justify-between px-1">
         <div>
@@ -632,7 +632,7 @@
     <!-- ================================================================= -->
     <!-- TAB 4: TRENDS & INSIGHTS (BEHAVIOR & BIOLOGY) -->
     <!-- ================================================================= -->
-    <main id="tab-trends" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+    <main id="tab-trends" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
 
       <!-- Header Banner -->
       <div class="flex items-center justify-between px-1">
@@ -775,7 +775,7 @@
     <!-- ================================================================= -->
     <!-- TAB 5: ANALYTICS & TRENDS (CONTINUOUS MULTI-DAY GRAPHS) -->
     <!-- ================================================================= -->
-    <main id="tab-analytics" class="hidden flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
+    <main id="tab-analytics" class="hidden flex-1 px-4 py-3 pb-28 space-y-3.5 overflow-y-auto">
 
       <!-- Header & Time-Range Toggle -->
       <div class="flex items-center justify-between px-1">
@@ -889,8 +889,8 @@
 
     </main>
 
-    <!-- BOTTOM NAVIGATION BAR (5 Professional Tabs) -->
-    <nav class="bottom-nav glass-card border-t border-augur-border/80 px-4 pt-3 flex justify-between items-center z-20">
+    <!-- BOTTOM NAVIGATION BAR (5 Professional Tabs) - Permanently Docked -->
+    <nav class="bottom-nav fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-card border-t border-augur-border/80 px-4 pt-3 flex justify-between items-center z-40 backdrop-blur-2xl bg-augur-bg/95">
       <!-- Tab 1: Today -->
       <button onclick="switchTab('today')" id="nav-today" class="flex flex-col items-center text-augur-green transition-colors">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1058,7 +1058,12 @@
 
       <!-- 4. NOTIFICATIONS -->
       <div class="space-y-2.5">
-        <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Notifications (Europe/Brussels)</span>
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Notifications (Europe/Brussels)</span>
+          <button onclick="triggerTestNotification()" id="btn-test-notif" class="px-2.5 py-1 rounded-lg bg-augur-card border border-augur-borderLight text-[10px] font-bold font-mono text-augur-green hover:bg-augur-green hover:text-black transition-all">
+            Send Test Push
+          </button>
+        </div>
         <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2 text-xs">
           <label class="flex items-center justify-between cursor-pointer">
             <span class="text-zinc-300">Morning Recovery Summary (08:00)</span>
@@ -1119,11 +1124,16 @@
       <div class="flex items-center justify-between pb-2 border-b border-augur-border">
         <div>
           <h3 class="text-sm font-black uppercase tracking-wider text-white">Log Yesterday's Habits</h3>
-          <p id="habit-modal-date" class="text-[10px] font-mono text-zinc-400">Targeting physiological baseline</p>
+          <p id="habit-modal-date" class="text-[10px] font-mono text-zinc-400">Targeting overnight recovery impact</p>
         </div>
         <button onclick="closeHabitModal()" class="w-7 h-7 rounded-full bg-augur-cardInner border border-augur-border flex items-center justify-center text-zinc-400 hover:text-white">
           ✕
         </button>
+      </div>
+
+      <!-- Clarification Box -->
+      <div class="p-2.5 rounded-xl bg-augur-cardInner border border-augur-border/80 text-[10px] text-zinc-400 leading-snug">
+        <span class="text-augur-cyan font-bold">Why yesterday?</span> AUGUR connects previous-day behaviors (alcohol, late dinner, screens, caffeine) with overnight HRV and RHR to determine today's morning recovery score.
       </div>
 
       <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
@@ -1170,6 +1180,7 @@
     const MODAL_READ_URL = "https://vincecoppens04--augur-backend-get-telemetry.modal.run";
     const MODAL_SYNC_URL = "https://vincecoppens04--augur-backend-sync-now.modal.run";
     const MODAL_HABITS_URL = "https://vincecoppens04--augur-backend-log-habits.modal.run";
+    const MODAL_TEST_NOTIF_URL = "https://vincecoppens04--augur-backend-send-test-notification.modal.run";
 
     const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -1493,7 +1504,7 @@
       const countEl = document.getElementById("tab3-feed-count");
       if (!container) return;
 
-      const acts = (activities && activities.length > 0) ? activities : [
+      const rawActs = (activities && activities.length > 0) ? activities : [
         {
           activity_type: "running",
           name: "Nice Running",
@@ -1529,7 +1540,10 @@
         }
       ];
 
-      if (countEl) countEl.innerText = `${acts.length} Recorded Sessions`;
+      // Strictly limit to the last 5 activities
+      const acts = rawActs.slice(0, 5);
+
+      if (countEl) countEl.innerText = `${acts.length} Recent Sessions`;
 
       container.innerHTML = acts.map(act => {
         const type = act.activity_type || "workout";
@@ -1932,6 +1946,59 @@
       downloadAnchor.remove();
     }
 
+    async function triggerTestNotification() {
+      const btn = document.getElementById("btn-test-notif");
+      const originalText = btn ? btn.innerText : "Send Test Push";
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Dispatching...";
+      }
+
+      // 1. Trigger local browser / PWA notification if supported
+      try {
+        if ("Notification" in window) {
+          if (Notification.permission === "granted") {
+            new Notification("AUGUR • Test Alert", {
+              body: "Recovery: 81% (Optimal) | HRV: 94 ms | Target Strain: 16.8–19.8. System operational!",
+              icon: "/apple-touch-icon.png",
+              badge: "/apple-touch-icon.png"
+            });
+          } else if (Notification.permission !== "denied") {
+            const perm = await Notification.requestPermission();
+            if (perm === "granted") {
+              new Notification("AUGUR • Test Alert", {
+                body: "Recovery: 81% (Optimal) | HRV: 94 ms | Target Strain: 16.8–19.8. System operational!",
+                icon: "/apple-touch-icon.png"
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Local notification error:", e);
+      }
+
+      // 2. Dispatch push to phone lock screen via Modal backend
+      try {
+        await fetch(MODAL_TEST_NOTIF_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        console.warn("Cloud push dispatch error:", err);
+      }
+
+      if (btn) {
+        btn.innerText = "✓ Push Sent!";
+        btn.className = "px-2.5 py-1 rounded-lg bg-augur-green text-black font-bold font-mono text-[10px] transition-all shadow-sm";
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerText = originalText;
+          btn.className = "px-2.5 py-1 rounded-lg bg-augur-card border border-augur-borderLight text-[10px] font-bold font-mono text-augur-green hover:bg-augur-green hover:text-black transition-all";
+        }, 2500);
+      }
+    }
+
     // ---------------------------------------------------------------
     // HABIT LOGGING MODAL
     // ---------------------------------------------------------------
@@ -1951,8 +2018,21 @@
       if (modal) {
         modal.classList.remove("hidden");
         const dateSub = document.getElementById("habit-modal-date");
-        if (dateSub && currentTelemetryDate) {
-          dateSub.innerText = `Logging for cycle ending ${currentTelemetryDate}`;
+        const btn = document.getElementById("btn-save-habits");
+        
+        const targetDate = currentTelemetryDate || new Date().toISOString().split('T')[0];
+        const todayObj = new Date(targetDate + 'T12:00:00');
+        const yesterdayObj = new Date(todayObj);
+        yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+
+        const yStr = yesterdayObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const tStr = todayObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+        if (dateSub) {
+          dateSub.innerHTML = `Behaviors from <strong class="text-augur-cyan font-mono">${yStr}</strong> (affects <strong class="text-augur-green font-mono">${tStr}</strong> score)`;
+        }
+        if (btn) {
+          btn.innerText = `Save Habits for ${yStr}`;
         }
       }
     }
