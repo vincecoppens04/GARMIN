@@ -1,0 +1,11 @@
+{
+  "name": "augur",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AUGUR Sports Science & Recovery Intelligence PWA",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "serve": "node server.js"
+  }
+}
