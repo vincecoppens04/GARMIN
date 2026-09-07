@@ -192,6 +192,63 @@
     </div>
   </div>
 
+  <!-- ================================================================= -->
+  <!-- APP TELEMETRY LOADING OVERLAY (Seamless Data Ingestion Splash) -->
+  <!-- ================================================================= -->
+  <div id="app-loading-overlay" class="fixed inset-0 z-40 bg-[#07080B] flex flex-col justify-center items-center px-6 transition-opacity duration-500 ease-out hidden">
+    <div class="flex flex-col items-center max-w-xs text-center space-y-6">
+      
+      <!-- Pulsing Brand Monogram / Breathing Ring -->
+      <div class="relative w-20 h-20 flex items-center justify-center">
+        <!-- Ambient blurred glow -->
+        <div class="absolute inset-0 rounded-full bg-augur-green/20 blur-xl animate-pulse"></div>
+        
+        <!-- Rotating dashed telemetry ring -->
+        <svg class="w-20 h-20 animate-spin" style="animation-duration: 4s;" viewBox="0 0 100 100">
+          <circle 
+            cx="50" cy="50" r="44" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="2" 
+            stroke-dasharray="12 8" 
+            class="text-augur-green/40"
+          />
+        </svg>
+
+        <!-- Inner counter-rotating ring -->
+        <svg class="absolute w-14 h-14 animate-spin" style="animation-duration: 2.5s; animation-direction: reverse;" viewBox="0 0 100 100">
+          <circle 
+            cx="50" cy="50" r="42" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="2.5" 
+            stroke-dasharray="6 6" 
+            class="text-augur-cyan/60"
+          />
+        </svg>
+
+        <!-- Center Core Lightning Icon -->
+        <div class="absolute w-10 h-10 rounded-full bg-[#0D1017] border border-augur-border flex items-center justify-center shadow-lg">
+          <svg class="w-5 h-5 text-augur-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Typography & Status -->
+      <div class="space-y-1.5">
+        <h2 class="text-sm font-black font-mono tracking-widest text-white uppercase">AUGUR INTELLIGENCE</h2>
+        <p id="loading-status-text" class="text-[10px] font-mono text-zinc-400 tracking-wider">Synchronizing physiological telemetry...</p>
+      </div>
+
+      <!-- Sleek Indeterminate Progress Bar -->
+      <div class="w-48 h-1 bg-zinc-900 rounded-full overflow-hidden border border-augur-border/40 relative">
+        <div class="h-full bg-gradient-to-r from-augur-green via-augur-cyan to-augur-green rounded-full w-2/3 animate-pulse"></div>
+      </div>
+
+    </div>
+  </div>
+
   <div id="app" class="w-full max-w-md mx-auto flex flex-col justify-between min-h-screen hidden">
 
     <!-- TOP BAR: Safe-Area Protected Header with Interactive Date Navigator -->
@@ -2571,12 +2628,37 @@
       });
     }
 
+    function showLoadingOverlay(msg) {
+      const loading = document.getElementById("app-loading-overlay");
+      const statusText = document.getElementById("loading-status-text");
+      if (statusText && msg) statusText.innerText = msg;
+      if (loading) {
+        loading.classList.remove("hidden");
+        loading.style.opacity = "1";
+        loading.style.pointerEvents = "auto";
+      }
+    }
+
+    function hideLoadingOverlay() {
+      const loading = document.getElementById("app-loading-overlay");
+      if (loading && !loading.classList.contains("hidden")) {
+        loading.style.opacity = "0";
+        loading.style.pointerEvents = "none";
+        setTimeout(() => {
+          loading.classList.add("hidden");
+        }, 500);
+      }
+    }
+
     function onAuthenticated(user) {
       currentUser = user;
       const overlay = document.getElementById("auth-overlay");
       const app = document.getElementById("app");
       if (overlay) overlay.classList.add("hidden");
       if (app) app.classList.remove("hidden");
+
+      // Show sleek loading screen while telemetry arrives from Supabase / Modal
+      showLoadingOverlay("Synchronizing physiological telemetry...");
 
       const emailEl = document.getElementById("settings-account-email");
       if (emailEl && user.email) {
@@ -2588,6 +2670,7 @@
 
     function showLoginOverlay() {
       currentUser = null;
+      hideLoadingOverlay();
       const overlay = document.getElementById("auth-overlay");
       const app = document.getElementById("app");
       if (overlay) overlay.classList.remove("hidden");
@@ -3575,6 +3658,8 @@
     function renderSleepSimulator(row) {
       const slider = document.getElementById("v2-sim-slider");
       if (slider) {
+        const targetNeed = (row && row.sleep_need_min) ? row.sleep_need_min : 450;
+        slider.value = Math.max(300, Math.min(600, targetNeed));
         updateSleepSimulator(slider.value);
       }
     }
@@ -3586,21 +3671,32 @@
       const displayEl = document.getElementById("v2-sim-duration-display");
       if (displayEl) displayEl.innerText = `${h}h ${m.toString().padStart(2, '0')}m`;
 
-      const baseNeed = (cachedTelemetry && cachedTelemetry.sleep_need_min) ? cachedTelemetry.sleep_need_min : 435;
+      const userBaseline = (appSettings && appSettings.sleep_need_min) || (cachedTelemetry && cachedTelemetry.user_baselines && cachedTelemetry.user_baselines.baseline_sleep_need_min) || 435;
       const currentDebt = (cachedTelemetry && cachedTelemetry.sleep_debt_min != null) ? cachedTelemetry.sleep_debt_min : 0;
+      const debtRate = (appSettings && appSettings.debt_payback_pct != null) ? appSettings.debt_payback_pct : 0.33;
+      const targetNeed = (cachedTelemetry && cachedTelemetry.sleep_need_min) ? cachedTelemetry.sleep_need_min : (userBaseline + Math.min(45, Math.round(currentDebt * debtRate)));
 
+      // Exact acute ledger formula matching pipeline.py
+      const decayedDebt = currentDebt * (1.0 - debtRate);
       let newDebt = 0;
-      if (plannedMin >= baseNeed) {
-        newDebt = Math.max(0, Math.round((currentDebt * 0.67) - (plannedMin - baseNeed)));
+      if (plannedMin >= userBaseline) {
+        const surplus = plannedMin - userBaseline;
+        newDebt = Math.max(0, Math.round(decayedDebt - surplus));
+      } else if (plannedMin >= (userBaseline - 30)) {
+        newDebt = Math.round(decayedDebt);
       } else {
-        const acuteDeficit = Math.max(0, (baseNeed - 30) - plannedMin);
-        newDebt = Math.min(120, Math.round(currentDebt * 0.67 + acuteDeficit));
+        const acuteDeficit = (userBaseline - 30) - plannedMin;
+        newDebt = Math.min(120, Math.round(decayedDebt + acuteDeficit));
       }
 
-      const sleepRatio = Math.min(1.1, plannedMin / Math.max(1, baseNeed));
-      const projectedRec = Math.min(98, Math.max(28, Math.round(sleepRatio * 82)));
+      // Projected recovery based on meeting tonight's prescribed target need
+      const sleepRatio = Math.min(1.15, plannedMin / Math.max(1, targetNeed));
+      const projectedRec = Math.min(99, Math.max(25, Math.round(sleepRatio * 84)));
 
-      const wakeTotalMin = 7 * 60; // 07:00
+      // Dynamic wake time from settings / Supabase
+      const wakeTime = (appSettings && appSettings.target_wake_time) || (cachedTelemetry && cachedTelemetry.user_baselines && cachedTelemetry.user_baselines.target_wake_time) || "07:00";
+      const [wakeH, wakeM] = wakeTime.split(":").map(Number);
+      const wakeTotalMin = (wakeH * 60) + wakeM;
       let bedTotalMin = (wakeTotalMin - (plannedMin + 15) + 1440) % 1440;
       const bedH = Math.floor(bedTotalMin / 60);
       const bedM = bedTotalMin % 60;
@@ -4714,6 +4810,10 @@
         const dCount = activeAnalyticsRange || 7;
         sleepReadout.innerText = `Need: ${baseStr} | Window: ${dCount}d`;
       }
+
+      // Update Sleep Simulator with active settings (wake time & baseline)
+      const simSlider = document.getElementById("v2-sim-slider");
+      if (simSlider) updateSleepSimulator(simSlider.value);
     }
 
     function populateSettingsUI() {
@@ -4787,6 +4887,7 @@
             max_hr: appSettings.max_hr,
             sleep_need_min: appSettings.sleep_need_min,
             target_wake_time: appSettings.target_wake_time,
+            debt_payback_rate: appSettings.debt_payback_pct,
           })
         });
       } catch (err) {
@@ -5205,12 +5306,16 @@
             }
             selectedDayOffset = 0;
             populateUI(allDailyRecords[0]);
+            hideLoadingOverlay();
             return;
           }
         }
       } catch (err) {
         console.warn("Modal read error, checking Supabase:", err);
       }
+
+      const statusText = document.getElementById("loading-status-text");
+      if (statusText) statusText.innerText = "Querying encrypted database...";
 
       if (supabaseClient) {
         try {
@@ -5229,6 +5334,7 @@
           console.error("Supabase load error:", err);
         }
       }
+      hideLoadingOverlay();
     }
 
     async function triggerModalSync() {
