@@ -113,6 +113,27 @@
     window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
   </script>
   <script defer src="/_vercel/speed-insights/script.js"></script>
+
+  <!-- OneSignal Web Push SDK v16 -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "67488f63-18d2-434f-ae9b-0b16db0a6e23",
+        serviceWorkerParam: { scope: "/" },
+        serviceWorkerPath: "/OneSignalSDKWorker.js",
+        allowLocalhostAsSecureOrigin: true
+      });
+      if (OneSignal.User && OneSignal.User.PushSubscription) {
+        OneSignal.User.PushSubscription.addEventListener("change", function() {
+          if (typeof updatePushStatusUI === "function") {
+            updatePushStatusUI();
+          }
+        });
+      }
+    });
+  </script>
 </head>
 <body class="bg-augur-bg text-white antialiased">
 
@@ -173,26 +194,34 @@
 
   <div id="app" class="w-full max-w-md mx-auto flex flex-col justify-between min-h-screen hidden">
 
-    <!-- TOP BAR: Safe-Area Protected Header -->
-    <header class="app-header px-5 pb-3 pt-2 flex items-center justify-between border-b border-augur-border/40">
-      <div class="flex items-center space-x-2.5">
-        <button onclick="openSettingsModal()" class="w-7 h-7 rounded-lg bg-augur-cardInner border border-augur-border flex items-center justify-center text-zinc-400 hover:text-white transition-colors" title="Settings & Diagnostics">
+    <!-- TOP BAR: Safe-Area Protected Header with Interactive Date Navigator -->
+    <header class="app-header px-4 pb-2.5 pt-2 flex items-center justify-between border-b border-augur-border/40">
+      <div class="flex items-center space-x-2">
+        <button onclick="openSettingsModal()" class="w-8 h-8 rounded-xl bg-augur-cardInner border border-augur-border flex items-center justify-center text-zinc-400 hover:text-white transition-colors" title="Settings & Diagnostics">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </button>
-        <div class="flex flex-col">
-          <span class="text-xs font-black tracking-widest text-white uppercase leading-tight">AUGUR</span>
-          <span id="date-label" class="text-[9px] font-mono tracking-wider text-zinc-400 uppercase">TODAY</span>
-        </div>
+        <span class="text-xs font-black tracking-widest text-white uppercase leading-none">AUGUR</span>
+      </div>
+
+      <!-- DATE SELECTOR (‹ Date ›) -->
+      <div class="flex items-center space-x-1 bg-augur-cardInner border border-augur-border rounded-xl px-1 py-0.5 shadow-sm">
+        <button onclick="navigateDay(1)" id="btn-date-prev" class="w-7 h-7 rounded-lg hover:bg-zinc-800 active:scale-95 flex items-center justify-center text-zinc-400 hover:text-white transition-colors" title="Previous Day">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        <span id="date-label" class="text-xs font-mono font-bold tracking-wider text-white uppercase px-1.5 min-w-[92px] text-center select-none">TODAY</span>
+        <button onclick="navigateDay(-1)" id="btn-date-next" disabled class="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 opacity-30 cursor-not-allowed transition-colors" title="Next Day">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" /></svg>
+        </button>
       </div>
 
       <!-- Sync Status Pill -->
       <div class="flex items-center space-x-2">
         <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-augur-card border border-augur-border">
           <span id="sync-pulse" class="w-1.5 h-1.5 rounded-full bg-augur-green"></span>
-          <span id="last-sync-time" class="text-[10px] font-mono text-zinc-300">LIVE</span>
+          <span id="last-sync-time" class="text-xs font-mono text-zinc-300">LIVE</span>
         </div>
       </div>
     </header>
@@ -858,94 +887,104 @@
       </div>
 
       <!-- GRAPH 1: OVERNIGHT HRV TREND -->
-      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-2.5">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Overnight HRV (rMSSD)</span>
+          <span class="text-xs font-bold tracking-widest text-zinc-400 uppercase">Overnight HRV (rMSSD)</span>
           <span class="text-xs font-mono font-bold text-augur-green" id="analytics-hrv-readout">Latest: 94 ms | Mean: 87.3</span>
         </div>
-        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
-          <svg id="chart-hrv-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+        <div id="container-hrv-chart" class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden cursor-crosshair touch-none select-none">
+          <div id="scrubber-line-hrv" class="absolute top-0 bottom-0 w-[1.5px] bg-augur-green pointer-events-none hidden z-10"></div>
+          <div id="scrubber-tip-hrv" class="absolute top-2 pointer-events-none hidden px-2.5 py-1 rounded-lg bg-black/90 border border-augur-border text-xs font-mono font-bold text-white shadow-xl -translate-x-1/2 whitespace-nowrap z-20"></div>
+          <svg id="chart-hrv-svg" class="w-full h-full pointer-events-none" viewBox="0 0 320 80" preserveAspectRatio="none">
             <rect id="hrv-confidence-band" x="0" y="20" width="320" height="40" fill="rgba(0, 229, 153, 0.08)" />
             <line id="hrv-mean-line" x1="0" y1="40" x2="320" y2="40" stroke="#00E599" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
             <path id="hrv-trend-path" d="" fill="none" stroke="#00E599" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </div>
-        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+        <div class="flex justify-between text-[10px] font-mono text-zinc-500 uppercase px-1">
           <span>Confidence Band (±1.5σ)</span>
-          <span>Rolling Baseline Mean (--)</span>
+          <span>Rolling Baseline Mean</span>
         </div>
       </div>
 
       <!-- GRAPH 2: RESTING HEART RATE (RHR) TREND -->
-      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-2.5">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Resting Heart Rate (RHR)</span>
-          <span class="text-xs font-mono font-bold text-zinc-200" id="analytics-rhr-readout">Latest: 45 bpm | Mean: 44.9</span>
+          <span class="text-xs font-bold tracking-widest text-zinc-400 uppercase">Resting Heart Rate (RHR)</span>
+          <span class="text-xs font-mono font-bold text-zinc-200" id="analytics-rhr-readout">Latest: 45 bpm | Mean: 45 bpm | Floor: 42 bpm</span>
         </div>
-        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
-          <svg id="chart-rhr-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+        <div id="container-rhr-chart" class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden cursor-crosshair touch-none select-none">
+          <div id="scrubber-line-rhr" class="absolute top-0 bottom-0 w-[1.5px] bg-augur-yellow pointer-events-none hidden z-10"></div>
+          <div id="scrubber-tip-rhr" class="absolute top-2 pointer-events-none hidden px-2.5 py-1 rounded-lg bg-black/90 border border-augur-border text-xs font-mono font-bold text-white shadow-xl -translate-x-1/2 whitespace-nowrap z-20"></div>
+          <svg id="chart-rhr-svg" class="w-full h-full pointer-events-none" viewBox="0 0 320 80" preserveAspectRatio="none">
             <line id="rhr-mean-line" x1="0" y1="45" x2="320" y2="45" stroke="#6B7280" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5" />
             <path id="rhr-trend-path" d="" fill="none" stroke="#FFB800" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </div>
-        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+        <div class="flex justify-between text-[10px] font-mono text-zinc-500 uppercase px-1">
           <span>Lower is Fitter</span>
-          <span>Baseline Floor (44.9 bpm)</span>
+          <span>Baseline Floor & Mean</span>
         </div>
       </div>
 
       <!-- GRAPH 3: SLEEP DURATION VS. SLEEP NEED -->
-      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-2.5">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Sleep Duration vs. Need</span>
+          <span class="text-xs font-bold tracking-widest text-zinc-400 uppercase">Sleep Duration vs. Need</span>
           <span class="text-xs font-mono font-bold text-augur-cyan" id="analytics-sleep-readout">Avg: 6h 52m / Need: 7h 15m</span>
         </div>
-        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
-          <svg id="chart-sleep-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+        <div id="container-sleep-chart" class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden cursor-crosshair touch-none select-none">
+          <div id="scrubber-line-sleep" class="absolute top-0 bottom-0 w-[1.5px] bg-augur-cyan pointer-events-none hidden z-10"></div>
+          <div id="scrubber-tip-sleep" class="absolute top-2 pointer-events-none hidden px-2.5 py-1 rounded-lg bg-black/90 border border-augur-border text-xs font-mono font-bold text-white shadow-xl -translate-x-1/2 whitespace-nowrap z-20"></div>
+          <svg id="chart-sleep-svg" class="w-full h-full pointer-events-none" viewBox="0 0 320 80" preserveAspectRatio="none">
             <!-- Sleep Need Line -->
             <line x1="0" y1="25" x2="320" y2="25" stroke="#00F0FF" stroke-width="1.5" stroke-dasharray="3,3" />
             <!-- Dynamic Stacked Bars -->
             <g id="sleep-bars-group"></g>
           </svg>
         </div>
-        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+        <div class="flex justify-between text-[10px] font-mono text-zinc-500 uppercase px-1">
           <span>Light, REM & Deep Bars</span>
-          <span class="text-augur-cyan font-bold">Target Need Line (--)</span>
+          <span class="text-augur-cyan font-bold">Target Need Line</span>
         </div>
       </div>
 
       <!-- GRAPH 4: DAILY STRAIN HISTORY -->
-      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-2.5">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Daily Strain History (0–21)</span>
+          <span class="text-xs font-bold tracking-widest text-zinc-400 uppercase">Daily Strain History (0–21)</span>
           <span class="text-xs font-mono font-bold text-blue-400" id="analytics-strain-readout">Avg Strain: 12.8</span>
         </div>
-        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
-          <svg id="chart-strain-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+        <div id="container-strain-chart" class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden cursor-crosshair touch-none select-none">
+          <div id="scrubber-line-strain" class="absolute top-0 bottom-0 w-[1.5px] bg-blue-400 pointer-events-none hidden z-10"></div>
+          <div id="scrubber-tip-strain" class="absolute top-2 pointer-events-none hidden px-2.5 py-1 rounded-lg bg-black/90 border border-augur-border text-xs font-mono font-bold text-white shadow-xl -translate-x-1/2 whitespace-nowrap z-20"></div>
+          <svg id="chart-strain-svg" class="w-full h-full pointer-events-none" viewBox="0 0 320 80" preserveAspectRatio="none">
             <g id="strain-bars-group"></g>
           </svg>
         </div>
-        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
+        <div class="flex justify-between text-[10px] font-mono text-zinc-500 uppercase px-1">
           <span>Green = Optimal | Amber = High | Red = Overreach</span>
           <span>Max 21.0</span>
         </div>
       </div>
 
       <!-- GRAPH 5: RESPIRATION & SPO2 -->
-      <div class="glass-card border border-augur-border rounded-3xl p-4 shadow-xl space-y-2">
+      <div class="glass-card border border-augur-border rounded-3xl p-5 shadow-xl space-y-2.5">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase">Respiration & Pulse Ox (SpO2)</span>
-          <span class="text-xs font-mono font-bold text-white">Resp: 12.0 brpm | SpO2: 97%</span>
+          <span class="text-xs font-bold tracking-widest text-zinc-400 uppercase">Respiration & Pulse Ox (SpO2)</span>
+          <span class="text-xs font-mono font-bold text-white" id="analytics-vitals-readout">Resp: 12.0 brpm | SpO2: 97%</span>
         </div>
-        <div class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden">
-          <svg id="chart-resp-svg" class="w-full h-full" viewBox="0 0 320 80" preserveAspectRatio="none">
+        <div id="container-vitals-chart" class="h-28 w-full bg-augur-cardInner rounded-2xl border border-augur-border p-2 relative overflow-hidden cursor-crosshair touch-none select-none">
+          <div id="scrubber-line-vitals" class="absolute top-0 bottom-0 w-[1.5px] bg-augur-green pointer-events-none hidden z-10"></div>
+          <div id="scrubber-tip-vitals" class="absolute top-2 pointer-events-none hidden px-2.5 py-1 rounded-lg bg-black/90 border border-augur-border text-xs font-mono font-bold text-white shadow-xl -translate-x-1/2 whitespace-nowrap z-20"></div>
+          <svg id="chart-resp-svg" class="w-full h-full pointer-events-none" viewBox="0 0 320 80" preserveAspectRatio="none">
             <path id="spo2-trend-path" d="" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" />
             <path id="resp-trend-path" d="" fill="none" stroke="#00E599" stroke-width="2" stroke-linecap="round" />
           </svg>
         </div>
-        <div class="flex justify-between text-[8px] font-mono text-zinc-500 uppercase px-1">
-          <span class="text-augur-green">Respiration (12.0 brpm)</span>
-          <span class="text-blue-400">Pulse Ox (97%)</span>
+        <div class="flex justify-between text-[10px] font-mono text-zinc-500 uppercase px-1">
+          <span class="text-augur-green">Respiration Rate</span>
+          <span class="text-blue-400">Pulse Ox (SpO2)</span>
         </div>
       </div>
 
@@ -959,46 +998,46 @@
     <nav class="bottom-nav fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-card border-t border-augur-border/80 px-4 flex justify-between items-center z-40 backdrop-blur-2xl bg-augur-bg/95">
       <!-- Tab 1: Today -->
       <button onclick="switchTab('today')" id="nav-today" class="flex flex-col items-center py-1 text-augur-green transition-colors">
-        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Today</span>
+        <span class="text-[10px] font-semibold tracking-wide uppercase mt-0.5">Today</span>
         <span class="w-1 h-1 rounded-full bg-augur-green mt-0.5"></span>
       </button>
 
       <!-- Tab 2: Sleep -->
       <button onclick="switchTab('sleep')" id="nav-sleep" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
         </svg>
-        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Sleep</span>
+        <span class="text-[10px] font-semibold tracking-wide uppercase mt-0.5">Sleep</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
 
       <!-- Tab 3: Strain -->
       <button onclick="switchTab('strain')" id="nav-strain" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
         </svg>
-        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Strain</span>
+        <span class="text-[10px] font-semibold tracking-wide uppercase mt-0.5">Strain</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
 
       <!-- Tab 4: Insights -->
       <button onclick="switchTab('trends')" id="nav-trends" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
-        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Insights</span>
+        <span class="text-[10px] font-semibold tracking-wide uppercase mt-0.5">Insights</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
 
       <!-- Tab 5: Analytics -->
       <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center py-1 text-zinc-500 hover:text-zinc-300 transition-colors">
-        <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <span class="text-[8px] font-bold tracking-wider uppercase mt-0.5">Analytics</span>
+        <span class="text-[10px] font-semibold tracking-wide uppercase mt-0.5">Analytics</span>
         <span class="w-1 h-1 rounded-full bg-transparent mt-0.5"></span>
       </button>
     </nav>
@@ -1137,11 +1176,21 @@
       <div class="space-y-2.5">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Notifications (Europe/Brussels)</span>
-          <button onclick="triggerTestNotification()" id="btn-test-notif" class="px-2.5 py-1 rounded-lg bg-augur-card border border-augur-borderLight text-[10px] font-bold font-mono text-augur-green hover:bg-augur-green hover:text-black transition-all">
+          <button onclick="triggerTestNotification()" id="btn-test-notif" class="px-2.5 py-1 rounded-lg bg-augur-card border border-augur-borderLight text-xs font-bold font-mono text-augur-green hover:bg-augur-green hover:text-black transition-all">
             Send Test Push
           </button>
         </div>
-        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2 text-xs">
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-3 text-xs">
+          <!-- OneSignal Subscription Status & Push Registration -->
+          <div class="flex items-center justify-between pb-2.5 border-b border-augur-border/60">
+            <div>
+              <span class="block font-semibold text-white">iPhone Lock-Screen Alerts</span>
+              <span id="onesignal-sub-status" class="text-[11px] font-mono text-zinc-400">Tap to authorize alerts</span>
+            </div>
+            <button onclick="subscribeOneSignal()" id="btn-onesignal-subscribe" class="px-3 py-1.5 rounded-xl bg-augur-green text-black font-bold font-mono text-xs hover:opacity-90 active:scale-95 transition-all">
+              Enable Push
+            </button>
+          </div>
           <label class="flex items-center justify-between cursor-pointer">
             <span class="text-zinc-300">Morning Recovery Summary (08:00)</span>
             <input type="checkbox" id="toggle-notif-morning" checked class="w-4 h-4 accent-augur-green rounded">
@@ -1409,6 +1458,8 @@
     let currentTelemetryDate = null;
     let cachedTelemetry = null;
     let activeAnalyticsRange = 7;
+    let allDailyRecords = [];
+    let selectedDayOffset = 0;
 
     function renderRecoveryRing(score) {
       const circle = document.getElementById("recovery-circle-bar");
@@ -1465,11 +1516,16 @@
       const sleepNeedMin = row.sleep_need_min || 435;
       const debtMin = row.sleep_debt_min != null ? row.sleep_debt_min : 0;
 
-      // 1. TOP BAR
-      if (row.date) {
-        const d = new Date(row.date + "T12:00:00Z");
-        const opts = { weekday: 'short', month: 'short', day: 'numeric' };
-        document.getElementById("date-label").innerText = d.toLocaleDateString('en-US', opts).toUpperCase();
+      // 1. TOP BAR DATE SWITCHER & STATUS
+      updateDateSwitcherUI();
+      const syncPulse = document.getElementById("sync-pulse");
+      const syncLabel = document.getElementById("last-sync-time");
+      if (selectedDayOffset === 0) {
+        if (syncPulse) syncPulse.className = "w-1.5 h-1.5 rounded-full bg-augur-green";
+        if (syncLabel) syncLabel.innerText = "LIVE";
+      } else {
+        if (syncPulse) syncPulse.className = "w-1.5 h-1.5 rounded-full bg-zinc-500";
+        if (syncLabel) syncLabel.innerText = "ARCHIVE";
       }
 
       // -------------------------------------------------------------
@@ -2017,6 +2073,161 @@
       }).join('');
     }
 
+    function formatDateShort(dateStr) {
+      if (!dateStr) return "";
+      const parts = dateStr.split("-");
+      if (parts.length < 3) return dateStr;
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      const month = d.toLocaleDateString([], { month: "short" });
+      const day = d.getDate();
+      return `${month} ${day}`;
+    }
+
+    const activeScrubberData = {
+      hrv: [],
+      rhr: [],
+      sleep: [],
+      strain: [],
+      resp: [],
+      spo2: []
+    };
+    let scrubbersAttached = false;
+
+    function attachScrubber(containerId, lineId, tipId, readoutId, formatFn, resetFn) {
+      const container = document.getElementById(containerId);
+      const line = document.getElementById(lineId);
+      const tip = document.getElementById(tipId);
+      const readout = document.getElementById(readoutId);
+      if (!container || !line || !tip) return;
+
+      const handleMove = (e) => {
+        const rect = container.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+        if (clientX === undefined) return;
+        const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+        const pct = rect.width > 0 ? (x / rect.width) : 0;
+
+        const totalPoints = activeScrubberData.hrv.length || 7;
+        const idx = Math.min(totalPoints - 1, Math.max(0, Math.round(pct * (totalPoints - 1))));
+
+        const info = formatFn(idx);
+        if (!info) return;
+
+        line.style.left = `${x}px`;
+        line.classList.remove("hidden");
+
+        tip.innerText = info.tip;
+        tip.style.left = `${Math.min(rect.width - 50, Math.max(50, x))}px`;
+        tip.classList.remove("hidden");
+
+        if (readout && info.readout) {
+          readout.innerText = info.readout;
+        }
+      };
+
+      const handleEnd = () => {
+        line.classList.add("hidden");
+        tip.classList.add("hidden");
+        if (readout && resetFn) {
+          readout.innerText = resetFn();
+        }
+      };
+
+      container.addEventListener("pointerdown", (e) => {
+        container.setPointerCapture(e.pointerId);
+        handleMove(e);
+      });
+      container.addEventListener("pointermove", handleMove);
+      container.addEventListener("pointerup", handleEnd);
+      container.addEventListener("pointercancel", handleEnd);
+      container.addEventListener("pointerleave", handleEnd);
+    }
+
+    function setupChartScrubbers() {
+      if (scrubbersAttached) return;
+      scrubbersAttached = true;
+
+      attachScrubber("container-hrv-chart", "scrubber-line-hrv", "scrubber-tip-hrv", "analytics-hrv-readout", (idx) => {
+        const item = activeScrubberData.hrv[idx];
+        if (!item) return null;
+        return {
+          tip: `${item.date} • ${item.val} ms`,
+          readout: `${item.date} • HRV: ${item.val} ms (Selected)`
+        };
+      }, () => {
+        const dCount = activeTimeRange || 7;
+        const vals = activeScrubberData.hrv.map(d => d.val);
+        const avg = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
+        const latest = vals.length ? vals[vals.length-1] : 0;
+        return `Latest: ${latest} ms | ${dCount}d Mean: ${avg} ms`;
+      });
+
+      attachScrubber("container-rhr-chart", "scrubber-line-rhr", "scrubber-tip-rhr", "analytics-rhr-readout", (idx) => {
+        const item = activeScrubberData.rhr[idx];
+        if (!item) return null;
+        return {
+          tip: `${item.date} • ${item.val} bpm`,
+          readout: `${item.date} • RHR: ${item.val} bpm (Selected)`
+        };
+      }, () => {
+        const dCount = activeTimeRange || 7;
+        const vals = activeScrubberData.rhr.map(d => d.val);
+        const avg = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
+        const floor = vals.length ? Math.min(...vals) : 0;
+        const latest = vals.length ? vals[vals.length-1] : 0;
+        return `Latest: ${latest} bpm | ${dCount}d Mean: ${avg} bpm | Floor: ${floor} bpm`;
+      });
+
+      attachScrubber("container-sleep-chart", "scrubber-line-sleep", "scrubber-tip-sleep", "analytics-sleep-readout", (idx) => {
+        const item = activeScrubberData.sleep[idx];
+        if (!item) return null;
+        const sH = Math.floor(item.val);
+        const sM = Math.round((item.val - sH) * 60);
+        return {
+          tip: `${item.date} • ${sH}h ${sM}m`,
+          readout: `${item.date} • Slept: ${sH}h ${sM}m`
+        };
+      }, () => {
+        const baseNeedMin = appSettings.sleep_need_min || 435;
+        const baseNeedStr = `${Math.floor(baseNeedMin/60)}h ${baseNeedMin%60}m`;
+        const vals = activeScrubberData.sleep.map(d => d.val);
+        const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+        const sH = Math.floor(avg);
+        const sM = Math.round((avg - sH) * 60);
+        return `Avg: ${sH}h ${sM}m / Need: ${baseNeedStr}`;
+      });
+
+      attachScrubber("container-strain-chart", "scrubber-line-strain", "scrubber-tip-strain", "analytics-strain-readout", (idx) => {
+        const item = activeScrubberData.strain[idx];
+        if (!item) return null;
+        return {
+          tip: `${item.date} • ${item.val.toFixed(1)} Strain`,
+          readout: `${item.date} • Day Strain: ${item.val.toFixed(1)} / 21.0`
+        };
+      }, () => {
+        const dCount = activeTimeRange || 7;
+        const vals = activeScrubberData.strain.map(d => d.val);
+        const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : "0.0";
+        return `${dCount}d Avg Strain: ${avg} / 21.0`;
+      });
+
+      attachScrubber("container-vitals-chart", "scrubber-line-vitals", "scrubber-tip-vitals", "analytics-vitals-readout", (idx) => {
+        const rItem = activeScrubberData.resp[idx];
+        const sItem = activeScrubberData.spo2[idx];
+        if (!rItem || !sItem) return null;
+        return {
+          tip: `${rItem.date} • ${rItem.val.toFixed(1)} RPM | ${Math.round(sItem.val)}% SpO2`,
+          readout: `${rItem.date} • Resp: ${rItem.val.toFixed(1)} br/min | SpO2: ${Math.round(sItem.val)}%`
+        };
+      }, () => {
+        const rVals = activeScrubberData.resp.map(d => d.val);
+        const sVals = activeScrubberData.spo2.map(d => d.val);
+        const rLatest = rVals.length ? rVals[rVals.length-1] : 12.0;
+        const sLatest = sVals.length ? sVals[sVals.length-1] : 97.0;
+        return `RPM: ${rLatest.toFixed(1)} br/min | SpO2: ${Math.round(sLatest)}%`;
+      });
+    }
+
     function renderAnalyticsGraphs(records, days) {
       const dCount = days || activeTimeRange || 7;
       const data = records || getHistoryForRange(dCount);
@@ -2031,6 +2242,15 @@
       const respVals = chronological.map(d => d.resp_rate || 12.0);
       const spo2Vals = chronological.map(d => d.spo2 || 97.0);
 
+      // Populate interactive scrubber datasets with dates
+      activeScrubberData.hrv = chronological.map(d => ({ date: formatDateShort(d.date), val: d.hrv_rmssd || 88 }));
+      activeScrubberData.rhr = chronological.map(d => ({ date: formatDateShort(d.date), val: d.rhr || 45 }));
+      activeScrubberData.sleep = chronological.map(d => ({ date: formatDateShort(d.date), val: (d.sleep_actual_sec || 24300) / 3600 }));
+      activeScrubberData.strain = chronological.map(d => ({ date: formatDateShort(d.date), val: Number(d.day_strain) || 0.0 }));
+      activeScrubberData.resp = chronological.map(d => ({ date: formatDateShort(d.date), val: d.resp_rate || 12.0 }));
+      activeScrubberData.spo2 = chronological.map(d => ({ date: formatDateShort(d.date), val: d.spo2 || 97.0 }));
+      setupChartScrubbers();
+
       // 1. HRV
       const avgHrv = Math.round(hrvVals.reduce((a, b) => a + b, 0) / n);
       const latestHrv = hrvVals[hrvVals.length - 1];
@@ -2038,11 +2258,12 @@
       if (hrvReadout) hrvReadout.innerText = `Latest: ${latestHrv} ms | ${dCount}d Mean: ${avgHrv} ms`;
       drawSvgLine("hrv-trend-path", hrvVals, 50, 120);
 
-      // 2. RHR
+      // 2. RHR (Includes both 30-Day Mean and Floor!)
       const floorRhr = Math.min(...rhrVals);
+      const avgRhr = Math.round(rhrVals.reduce((a, b) => a + b, 0) / n);
       const latestRhr = rhrVals[rhrVals.length - 1];
       const rhrReadout = document.getElementById("analytics-rhr-readout");
-      if (rhrReadout) rhrReadout.innerText = `Latest: ${latestRhr} bpm | ${dCount}d Floor: ${floorRhr} bpm`;
+      if (rhrReadout) rhrReadout.innerText = `Latest: ${latestRhr} bpm | ${dCount}d Mean: ${avgRhr} bpm | Floor: ${floorRhr} bpm`;
       drawSvgLine("rhr-trend-path", rhrVals, 38, 56);
 
       // 3. Sleep Grouped Bars
@@ -2164,6 +2385,7 @@
 
     function openSettingsModal() {
       populateSettingsUI();
+      updatePushStatusUI();
       const modal = document.getElementById("settings-modal");
       if (modal) modal.classList.remove("hidden");
     }
@@ -2288,6 +2510,77 @@
       }
     }
 
+    async function updatePushStatusUI() {
+      const statusEl = document.getElementById("onesignal-sub-status");
+      const btn = document.getElementById("btn-onesignal-subscribe");
+      if (!statusEl || !btn) return;
+
+      if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+        const isOptedIn = window.OneSignal.User.PushSubscription.optedIn;
+        const subId = window.OneSignal.User.PushSubscription.id;
+        if (isOptedIn && subId) {
+          statusEl.innerText = "✓ Active & Subscribed";
+          statusEl.className = "text-[11px] font-mono text-augur-green";
+          btn.innerText = "Subscribed";
+          btn.disabled = true;
+          btn.className = "px-3 py-1.5 rounded-xl bg-augur-card border border-augur-green/40 text-augur-green font-bold font-mono text-xs opacity-80 cursor-default";
+          return;
+        }
+      }
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        statusEl.innerText = "Authorized (linking...)";
+        statusEl.className = "text-[11px] font-mono text-zinc-300";
+      } else if ("Notification" in window && Notification.permission === "denied") {
+        statusEl.innerText = "Blocked in iOS Settings";
+        statusEl.className = "text-[11px] font-mono text-red-400";
+        btn.innerText = "Blocked";
+        btn.disabled = true;
+        btn.className = "px-3 py-1.5 rounded-xl bg-zinc-800 text-zinc-500 font-bold font-mono text-xs cursor-not-allowed";
+      } else {
+        statusEl.innerText = "Tap to authorize alerts";
+        statusEl.className = "text-[11px] font-mono text-zinc-400";
+        btn.innerText = "Enable Push";
+        btn.disabled = false;
+        btn.className = "px-3 py-1.5 rounded-xl bg-augur-green text-black font-bold font-mono text-xs hover:opacity-90 active:scale-95 transition-all";
+      }
+    }
+
+    async function subscribeOneSignal() {
+      const statusEl = document.getElementById("onesignal-sub-status");
+      const btn = document.getElementById("btn-onesignal-subscribe");
+      if (btn) {
+        btn.innerText = "Authorizing...";
+        btn.disabled = true;
+      }
+
+      try {
+        if (window.OneSignalDeferred) {
+          window.OneSignalDeferred.push(async function(OneSignal) {
+            try {
+              if (OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
+                await OneSignal.Notifications.requestPermission();
+              }
+              if (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.optIn) {
+                await OneSignal.User.PushSubscription.optIn();
+              }
+              setTimeout(updatePushStatusUI, 1000);
+            } catch (err) {
+              console.warn("OneSignal optIn error:", err);
+              if (statusEl) statusEl.innerText = "Failed: " + (err.message || err);
+            }
+          });
+        } else if ("Notification" in window) {
+          await Notification.requestPermission();
+          updatePushStatusUI();
+        }
+      } catch (e) {
+        console.error("Subscription error:", e);
+      } finally {
+        setTimeout(updatePushStatusUI, 1500);
+      }
+    }
+
     // ---------------------------------------------------------------
     // HABIT LOGGING MODAL
     // ---------------------------------------------------------------
@@ -2377,15 +2670,104 @@
     }
 
     // ---------------------------------------------------------------
-    // TELEMETRY LOADER & SYNC
+    // TELEMETRY LOADER & MULTI-DAY NAVIGATION
     // ---------------------------------------------------------------
+    function updateDateSwitcherUI() {
+      const prevBtn = document.getElementById("btn-date-prev");
+      const nextBtn = document.getElementById("btn-date-next");
+      const dateLabel = document.getElementById("date-label");
+
+      if (!allDailyRecords || allDailyRecords.length <= 1) {
+        if (prevBtn) {
+          prevBtn.disabled = true;
+          prevBtn.classList.add("opacity-30", "cursor-not-allowed", "text-zinc-600");
+          prevBtn.classList.remove("hover:bg-zinc-800", "text-zinc-400", "hover:text-white");
+        }
+        if (nextBtn) {
+          nextBtn.disabled = true;
+          nextBtn.classList.add("opacity-30", "cursor-not-allowed", "text-zinc-600");
+          nextBtn.classList.remove("hover:bg-zinc-800", "text-zinc-400", "hover:text-white");
+        }
+      } else {
+        // Next button (towards today / offset 0)
+        if (nextBtn) {
+          const isAtLatest = (selectedDayOffset <= 0);
+          nextBtn.disabled = isAtLatest;
+          if (isAtLatest) {
+            nextBtn.classList.add("opacity-30", "cursor-not-allowed", "text-zinc-600");
+            nextBtn.classList.remove("hover:bg-zinc-800", "text-zinc-400", "hover:text-white");
+          } else {
+            nextBtn.classList.remove("opacity-30", "cursor-not-allowed", "text-zinc-600");
+            nextBtn.classList.add("hover:bg-zinc-800", "text-zinc-400", "hover:text-white");
+          }
+        }
+
+        // Prev button (towards past / older days)
+        if (prevBtn) {
+          const isAtOldest = (selectedDayOffset >= allDailyRecords.length - 1);
+          prevBtn.disabled = isAtOldest;
+          if (isAtOldest) {
+            prevBtn.classList.add("opacity-30", "cursor-not-allowed", "text-zinc-600");
+            prevBtn.classList.remove("hover:bg-zinc-800", "text-zinc-400", "hover:text-white");
+          } else {
+            prevBtn.classList.remove("opacity-30", "cursor-not-allowed", "text-zinc-600");
+            prevBtn.classList.add("hover:bg-zinc-800", "text-zinc-400", "hover:text-white");
+          }
+        }
+      }
+
+      if (dateLabel) {
+        if (selectedDayOffset === 0) {
+          dateLabel.innerText = "TODAY";
+        } else if (selectedDayOffset === 1) {
+          dateLabel.innerText = "YESTERDAY";
+        } else {
+          const rec = allDailyRecords[selectedDayOffset];
+          if (rec && rec.date) {
+            const parts = rec.date.split("-");
+            if (parts.length >= 3) {
+              const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+              dateLabel.innerText = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+            } else {
+              dateLabel.innerText = rec.date;
+            }
+          } else {
+            dateLabel.innerText = `DAY -${selectedDayOffset}`;
+          }
+        }
+      }
+    }
+
+    function navigateDay(delta) {
+      if (!allDailyRecords || allDailyRecords.length === 0) return;
+      const newOffset = selectedDayOffset + delta;
+      if (newOffset < 0 || newOffset >= allDailyRecords.length) return;
+      selectedDayOffset = newOffset;
+
+      const rec = allDailyRecords[selectedDayOffset];
+      const fullRec = {
+        ...rec,
+        history_records: allDailyRecords,
+        user_baselines: allDailyRecords[0]?.user_baselines,
+        habit_correlations: allDailyRecords[0]?.habit_correlations,
+      };
+      populateUI(fullRec);
+    }
+
     async function loadTelemetry() {
       try {
         const res = await fetch(MODAL_READ_URL);
         if (res.ok) {
           const row = await res.json();
           if (row && (row.recovery_score != null || row.recovery != null)) {
-            populateUI(row);
+            if (row.history_records && Array.isArray(row.history_records) && row.history_records.length > 0) {
+              allDailyRecords = row.history_records;
+              allDailyRecords[0] = { ...row, ...allDailyRecords[0] };
+            } else {
+              allDailyRecords = [row];
+            }
+            selectedDayOffset = 0;
+            populateUI(allDailyRecords[0]);
             return;
           }
         }
@@ -2399,9 +2781,11 @@
             .from("daily_summaries")
             .select("*")
             .order("date", { ascending: false })
-            .limit(1);
+            .limit(90);
 
           if (data && data.length > 0) {
+            allDailyRecords = data;
+            selectedDayOffset = 0;
             populateUI(data[0]);
           }
         } catch (err) {
@@ -2429,7 +2813,16 @@
 
         if (res.ok) {
           const result = await res.json();
-          populateUI(result);
+          if (result && result.history_records && Array.isArray(result.history_records) && result.history_records.length > 0) {
+            allDailyRecords = result.history_records;
+            allDailyRecords[0] = { ...result, ...allDailyRecords[0] };
+          } else if (result) {
+            allDailyRecords = [result];
+          }
+          selectedDayOffset = 0;
+          populateUI(allDailyRecords[0]);
+          applySettings();
+
           if (btnText) btnText.innerText = "✓ Telemetry Updated";
           if (pulse) pulse.className = "w-1.5 h-1.5 rounded-full bg-augur-green";
           setTimeout(() => {

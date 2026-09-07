@@ -126,7 +126,7 @@ def calculate_activity_strain(
     a_coeff = 0.64 if sex.lower() == "male" else 0.86
 
     trimp = dt_min * y * a_coeff * math.exp(b_coeff * y)
-    strain = round(21.0 * (1.0 - math.exp(-0.015 * trimp)), 1)
+    strain = round(21.0 * (1.0 - math.exp(-0.0055 * trimp)), 1)
     return min(21.0, strain)
 
 def calculate_strain_and_curve(
@@ -187,8 +187,8 @@ def calculate_strain_and_curve(
             if 0 <= b_idx < 96:
                 buckets[b_idx]["hr_sum"] += bpm
                 buckets[b_idx]["count"] += 1
-                # Calibrated 0-21 logarithmic strain scalar (k = 0.015)
-                current_strain = round(21.0 * (1.0 - math.exp(-0.015 * total_trimp)), 1)
+                # Calibrated 0-21 logarithmic strain scalar (k = 0.0055)
+                current_strain = round(21.0 * (1.0 - math.exp(-0.0055 * total_trimp)), 1)
                 buckets[b_idx]["cum_strain"] = min(21.0, current_strain)
 
     # 3. Format complete 96-bucket curve with forward-fill for smooth presentation
@@ -211,7 +211,7 @@ def calculate_strain_and_curve(
             "cum_strain": round(last_known_strain, 1)
         })
 
-    final_day_strain = round(21.0 * (1.0 - math.exp(-0.015 * total_trimp)), 1)
+    final_day_strain = round(21.0 * (1.0 - math.exp(-0.0055 * total_trimp)), 1)
     return min(21.0, final_day_strain), strain_curve_96
 
 # =====================================================================
@@ -660,12 +660,13 @@ def send_phone_notification(title: str, message: str, priority: str = "normal", 
             }
             if app_url:
                 payload["url"] = app_url  # Tapping notification opens your Vercel app!
+            auth_prefix = "Key" if onesignal_api_key.startswith("os_v2_") else "Basic"
             req = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
                 headers={
                     "Content-Type": "application/json; charset=utf-8",
-                    "Authorization": f"Basic {onesignal_api_key}"
+                    "Authorization": f"{auth_prefix} {onesignal_api_key}"
                 },
                 method="POST"
             )

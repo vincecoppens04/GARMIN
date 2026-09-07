@@ -106,19 +106,7 @@ def sync_now():
     print(f"[API Webhook] Received 'Sync Now' request for {today_str}...")
     summary = process_day(today_str, quiet=True)
     token_volume.commit()
-    return {
-        "status": "success",
-        "date": summary.get("date"),
-        "recovery": summary.get("recovery"),
-        "strain": summary.get("strain"),
-        "target_strain_min": summary.get("target_strain_min"),
-        "target_strain_max": summary.get("target_strain_max"),
-        "sleep_need_min": summary.get("sleep_need_min"),
-        "bedtime": summary.get("bedtime"),
-        "ai_briefing": summary.get("ai_briefing"),
-        "health_status": summary.get("health_status"),
-        "health_alerts": summary.get("health_alerts"),
-    }
+    return get_telemetry()
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="GET")
@@ -135,7 +123,7 @@ def get_telemetry():
         .select("*")
         .eq("user_id", user_id)
         .order("date", desc=True)
-        .limit(30)
+        .limit(90)
         .execute()
     )
     records = res.data or []
