@@ -53,7 +53,7 @@ def _sync_and_backfill(garmin, supabase_tuple, lookback_days=7):
     try:
         existing_res = (
             supabase.table("daily_summaries")
-            .select("date, sleep_actual_sec, hrv_rmssd")
+            .select("date, sleep_actual_sec, hrv_rmssd, metrics_v2")
             .eq("user_id", user_id)
             .gte("date", cutoff)
             .execute()
@@ -68,11 +68,11 @@ def _sync_and_backfill(garmin, supabase_tuple, lookback_days=7):
     days_to_process.add(today.isoformat())
     days_to_process.add((today - timedelta(days=1)).isoformat())
 
-    # Check days 2 through lookback_days: if missing or lacking sleep/hrv data, backfill
+    # Check days 2 through lookback_days: if missing or lacking V2 metrics, backfill
     for i in range(2, lookback_days + 1):
         d_str = (today - timedelta(days=i)).isoformat()
         rec = existing_records.get(d_str)
-        if not rec or not rec.get("sleep_actual_sec") or not rec.get("hrv_rmssd"):
+        if not rec or not rec.get("sleep_actual_sec") or not rec.get("hrv_rmssd") or not rec.get("metrics_v2"):
             days_to_process.add(d_str)
 
     sorted_days = sorted(list(days_to_process))
@@ -219,12 +219,16 @@ def evening_reminder():
     timeout=180
 )
 def evening_sync():
-    """Notification 4 (21:00): Calculate bedtime prescription & dispatch wind-down."""
-    from pipeline import process_day, notify_evening_bedtime
+    """Notification 4 (21:00): Calculate bedtime prescription & dispatch wind-down with 2-day backfill."""
+    from pipeline import get_garmin_client, get_supabase_client, process_day, notify_evening_bedtime
     from datetime import date
     today_str = date.today().isoformat()
-    print(f"[21:00 Cron] Running Bedtime Engine for {today_str}...")
-    summary = process_day(today_str)
+    print(f"[21:00 Cron] Running Bedtime Engine for {today_str} with 2-day backfill...")
+    garmin = get_garmin_client()
+    supabase_tuple = get_supabase_client()
+    summary = _sync_and_backfill(garmin, supabase_tuple, lookback_days=2)
+    if not summary:
+        summary = process_day(today_str, garmin=garmin, supabase_tuple=supabase_tuple)
     token_volume.commit()
     print(f"[21:00 Cron] Dispatching Bedtime Prescription (Target Lights-Out: {summary.get('bedtime')})...")
     notify_evening_bedtime(summary)
@@ -253,8 +257,39 @@ def sync_now():
     supabase, user_id = get_supabase_client()
     supabase_tuple = (supabase, user_id)
 
-    _sync_and_backfill(garmin, supabase_tuple, lookback_days=7)
+    _sync_and_backfill(garmin, supabase_tuple, lookback_days=14)
     return _fetch_telemetry_payload(user_id=user_id, supabase=supabase)
+
+@app.function(
+    image=image, 
+    secrets=[augur_secret], 
+    volumes={TOKENSTORE_PATH: token_volume},
+    timeout=600
+)
+@modal.fastapi_endpoint(method="POST")
+def backfill_now(days: int = 14):
+    """
+    Explicitly forces a full backfill of the past N days from Garmin Connect,
+    re-computing all 20 Version 2 metrics and overwriting existing rows in Supabase.
+    """
+    from pipeline import get_garmin_client, get_supabase_client, process_day
+    from datetime import date, timedelta
+    garmin = get_garmin_client()
+    supabase, user_id = get_supabase_client()
+    supabase_tuple = (supabase, user_id)
+    today = date.today()
+    results = []
+    for i in range(days, -1, -1):
+        d_str = (today - timedelta(days=i)).isoformat()
+        try:
+            print(f"[Forced Backfill] Repopulating {d_str}...")
+            res = process_day(d_str, garmin=garmin, supabase_tuple=supabase_tuple, quiet=True)
+            results.append({"date": d_str, "status": "ok"})
+        except Exception as e:
+            print(f"[Forced Backfill] Error {d_str}: {e}")
+            results.append({"date": d_str, "status": "error", "error": str(e)})
+    token_volume.commit()
+    return {"repopulated_days": results, "latest": _fetch_telemetry_payload(user_id=user_id, supabase=supabase)}
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="GET")

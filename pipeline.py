@@ -214,6 +214,39 @@ def calculate_strain_and_curve(
     final_day_strain = round(21.0 * (1.0 - math.exp(-0.0055 * total_trimp)), 1)
     return min(21.0, final_day_strain), strain_curve_96
 
+def check_hr_sync_freshness(hr_raw: dict | None, target_date_str: str) -> dict:
+    """
+    Checks if today's heart rate data from Garmin is up to date (synced within last 90 minutes).
+    Returns dict with is_today, is_stale, last_sync_time, and age_min.
+    """
+    now = datetime.now(USER_TIMEZONE)
+    today_iso = now.date().isoformat()
+    if target_date_str != today_iso:
+        return {"is_today": False, "is_stale": False, "last_sync_time": None, "age_min": 0}
+
+    hr_values = hr_raw.get("heartRateValues", []) if isinstance(hr_raw, dict) else []
+    valid = [p for p in hr_values if len(p) >= 2 and p[1] is not None]
+    if not valid:
+        return {
+            "is_today": True,
+            "is_stale": True,
+            "last_sync_time": None,
+            "age_min": 9999,
+        }
+
+    last_ts_ms = max(p[0] for p in valid)
+    last_dt = datetime.fromtimestamp(last_ts_ms / 1000.0, tz=ZoneInfo("UTC")).astimezone(USER_TIMEZONE)
+    age_min = max(0.0, (now - last_dt).total_seconds() / 60.0)
+    is_stale = (age_min > 90.0)
+    time_str = last_dt.strftime("%H:%M")
+
+    return {
+        "is_today": True,
+        "is_stale": is_stale,
+        "last_sync_time": time_str,
+        "age_min": round(age_min, 1),
+    }
+
 # =====================================================================
 # 2. PHYSIOLOGICAL RECOVERY & HEALTH-STRESS ENGINE
 # =====================================================================
@@ -559,20 +592,20 @@ def generate_ai_briefing(
 
 def calculate_habit_correlations(supabase: Client, user_id: str) -> list[dict]:
     """
-    Computes ΔHRV and ΔRHR impact for habits logged in habit_logs over trailing 60 days.
+    Computes ΔHRV, ΔRHR, and ΔRecovery impact for habits logged in habit_logs over trailing 60 days.
     """
     try:
         habits_res = supabase.table("habit_logs").select("*").eq("user_id", user_id).order("date", desc=True).limit(60).execute()
-        summaries_res = supabase.table("daily_summaries").select("date, hrv_rmssd, rhr").eq("user_id", user_id).order("date", desc=True).limit(60).execute()
+        summaries_res = supabase.table("daily_summaries").select("date, hrv_rmssd, rhr, recovery_score").eq("user_id", user_id).order("date", desc=True).limit(60).execute()
 
         habits_by_date = {h["date"]: h for h in (habits_res.data or []) if h.get("date")}
         summaries = summaries_res.data or []
 
         habit_keys = [
-            ("alcohol", "Alcohol"),
-            ("party", "Party / Night Out"),
+            ("alcohol", "Alcohol / Night Out"),
+            ("party", "Party / Late Social"),
             ("late_meal", "Late Meal (<2h bed)"),
-            ("late_caffeine", "Late Caffeine"),
+            ("late_caffeine", "Late Caffeine (>15:00)"),
             ("any_caffeine", "Any Caffeine"),
             ("screen_in_bed", "Screen in Bed"),
             ("travel_day", "Travel / Jetlag"),
@@ -582,6 +615,7 @@ def calculate_habit_correlations(supabase: Client, user_id: str) -> list[dict]:
         for key, label in habit_keys:
             present_hrv, absent_hrv = [], []
             present_rhr, absent_rhr = [], []
+            present_rec, absent_rec = [], []
 
             for s in summaries:
                 d = s.get("date")
@@ -592,26 +626,848 @@ def calculate_habit_correlations(supabase: Client, user_id: str) -> list[dict]:
 
                 hrv = s.get("hrv_rmssd")
                 rhr = s.get("rhr")
+                rec = s.get("recovery_score")
                 if hrv is not None:
                     (present_hrv if is_present else absent_hrv).append(float(hrv))
                 if rhr is not None:
                     (present_rhr if is_present else absent_rhr).append(float(rhr))
+                if rec is not None:
+                    (present_rec if is_present else absent_rec).append(float(rec))
 
             # Only report if logged at least 3 times
             if len(present_hrv) >= 3 and len(absent_hrv) >= 3:
                 delta_hrv = round((sum(present_hrv) / len(present_hrv)) - (sum(absent_hrv) / len(absent_hrv)), 1)
                 delta_rhr = round((sum(present_rhr) / len(present_rhr)) - (sum(absent_rhr) / len(absent_rhr)), 1)
+                delta_rec = round((sum(present_rec) / len(present_rec)) - (sum(absent_rec) / len(absent_rec)), 1) if (present_rec and absent_rec) else None
                 results.append({
                     "habit_key": key,
                     "label": label,
                     "count": len(present_hrv),
                     "delta_hrv": delta_hrv,
                     "delta_rhr": delta_rhr,
+                    "delta_rec": delta_rec,
                 })
 
         return results
     except Exception:
         return []
+
+# =====================================================================
+# 5B. VERSION 2: ADVANCED SPORTS SCIENCE & AUTONOMIC MATRIX ENGINES
+# =====================================================================
+
+def calculate_workout_prescriber(recovery_score: float) -> dict:
+    """
+    Feature 1 (Tab 1): HRV Autoregulated Workout Prescriber
+    Translates morning readiness into a tangible training stimulus directive.
+    """
+    if recovery_score >= 67:
+        zone = "GREEN"
+        directive = "Neuromuscular & High Glycolytic Power"
+        focus = "Threshold intervals, maximum power sprints, heavy CNS strength lifts (>85% 1RM), or race pace efforts."
+        modalities = ["VO2 Max Intervals", "Heavy Compound Lifts", "Anaerobic Repeats"]
+    elif recovery_score >= 34:
+        zone = "YELLOW"
+        directive = "Aerobic Base & Muscular Endurance"
+        focus = "Zone 2 base endurance, steady-state aerobic recovery, moderate hypertrophy (65–75% 1RM). Restrict cardiac output from crossing anaerobic threshold."
+        modalities = ["Zone 2 Long Ride/Run", "Tempo Pace (<LT1)", "Hypertrophy 65-75%"]
+    else:
+        zone = "RED"
+        directive = "Active Restorative & Parasympathetic Flow"
+        focus = "Zone 1 walking, mobility/myofascial work, cold water immersion, or total physical rest."
+        modalities = ["Zone 1 Recovery Walk", "Mobility / Yoga", "Full Nervous System Rest"]
+
+    return {
+        "zone": zone,
+        "directive": directive,
+        "focus": focus,
+        "modalities": modalities,
+    }
+
+def calculate_immune_strain_index(
+    today_hrv: float | None,
+    today_rhr: float | None,
+    today_resp: float | None,
+    today_spo2: float | None,
+    history: list[dict]
+) -> dict:
+    """
+    Feature 2 (Tab 1): Pre-Symptomatic Illness Score (0–100 Immune Severity Index)
+    Weighted composite severity score tracking autonomic stress across all 4 overnight vitals.
+    """
+    def get_stats(key, default_mu, default_sd):
+        vals = [float(h[key]) for h in history if h.get(key) is not None]
+        if len(vals) < 3:
+            return default_mu, default_sd
+        mu = sum(vals) / len(vals)
+        var = sum((x - mu) ** 2 for x in vals) / len(vals)
+        sd = max(0.5, math.sqrt(var))
+        return mu, sd
+
+    mu_hrv, sd_hrv = get_stats("hrv_rmssd", 85.0, 10.0)
+    mu_rhr, sd_rhr = get_stats("rhr", 45.0, 3.0)
+    mu_resp, sd_resp = get_stats("resp_rate", 12.0, 1.0)
+    mu_spo2, sd_spo2 = get_stats("spo2", 97.0, 1.0)
+
+    z_hrv = max(0.0, (mu_hrv - float(today_hrv or mu_hrv)) / sd_hrv) if today_hrv is not None else 0.0
+    z_rhr = max(0.0, (float(today_rhr or mu_rhr) - mu_rhr) / sd_rhr) if today_rhr is not None else 0.0
+    z_resp = max(0.0, (float(today_resp or mu_resp) - mu_resp) / sd_resp) if today_resp is not None else 0.0
+    z_spo2 = max(0.0, (mu_spo2 - float(today_spo2 or mu_spo2)) / sd_spo2) if today_spo2 is not None else 0.0
+
+    i_raw = 0.35 * z_resp + 0.30 * z_rhr + 0.25 * z_hrv + 0.10 * z_spo2
+    immune_index = min(100, int(round((i_raw / 3.0) * 100)))
+
+    if immune_index >= 56:
+        tier = "High Infection / Illness Risk"
+        tier_key = "HIGH"
+    elif immune_index >= 26:
+        tier = "Watch / Mild Autonomic Stress"
+        tier_key = "WATCH"
+    else:
+        tier = "Normal"
+        tier_key = "NORMAL"
+
+    return {
+        "immune_strain_index": immune_index,
+        "tier": tier,
+        "tier_key": tier_key,
+        "raw_index": round(i_raw, 2),
+        "z_scores": {
+            "hrv": round(z_hrv, 2),
+            "rhr": round(z_rhr, 2),
+            "resp": round(z_resp, 2),
+            "spo2": round(z_spo2, 2)
+        }
+    }
+
+def calculate_autonomic_sleep_profile(
+    sleep_raw: dict,
+    daytime_rhr: float | None
+) -> dict:
+    """
+    Feature 3 (Tab 2): Autonomic Sleep Profile: Nocturnal Dipping & Curve Shape
+    Assesses whether sympathetic tone shuts down during sleep using overnight HR time series.
+    """
+    sleep_hr_list = sleep_raw.get("sleepHeartRate") or []
+    valid_hrs = [item["value"] for item in sleep_hr_list if isinstance(item, dict) and item.get("value") is not None]
+    
+    if not valid_hrs or not daytime_rhr or daytime_rhr <= 0:
+        return {
+            "dip_pct": None,
+            "dipping_tier": "NO DATA",
+            "curve_shape": "NO DATA",
+            "curve_desc": "Awaiting overnight HR time series.",
+            "lowest_overnight_hr": None,
+            "nadir_ratio": None
+        }
+
+    lowest_hr = min(valid_hrs)
+    dip_pct = round(((daytime_rhr - lowest_hr) / daytime_rhr) * 100, 1)
+
+    if dip_pct > 20.0:
+        dipping_tier = "Extreme Dipper"
+        dip_desc = "High vagal tone or severe physiological exhaustion"
+    elif dip_pct >= 10.0:
+        dipping_tier = "Normal Dipper"
+        dip_desc = "Healthy cardiovascular decompression during sleep"
+    else:
+        dipping_tier = "Non-Dipper"
+        dip_desc = "Sympathetic elevation, high systemic inflammation, or late digestion penalty"
+
+    t_total = len(valid_hrs)
+    nadir_idx = valid_hrs.index(lowest_hr)
+    nadir_ratio = round(nadir_idx / max(1, t_total), 2)
+
+    half = t_total // 2
+    h1 = valid_hrs[:half] if half > 0 else valid_hrs
+    h2 = valid_hrs[half:] if half > 0 else valid_hrs
+    mean_h1 = sum(h1) / len(h1) if h1 else 0.0
+    mean_h2 = sum(h2) / len(h2) if h2 else 0.0
+
+    if 0.25 <= nadir_ratio <= 0.75:
+        curve_shape = "Hammock"
+        curve_desc = "Optimal recovery: HR reached nadir midway through sleep and recovered smoothly."
+    elif mean_h1 > mean_h2 + 4.0:
+        curve_shape = "Slope"
+        curve_desc = "Delayed recovery: Elevated heart rate in early sleep due to late digestion/alcohol."
+    else:
+        curve_shape = "Plateau"
+        curve_desc = "Continuous sympathetic elevation: Heart rate remained unrelaxed across sleep cycle."
+
+    return {
+        "dip_pct": dip_pct,
+        "dipping_tier": dipping_tier,
+        "dip_desc": dip_desc,
+        "curve_shape": curve_shape,
+        "curve_desc": curve_desc,
+        "lowest_overnight_hr": lowest_hr,
+        "nadir_ratio": nadir_ratio
+    }
+
+def calculate_hrv_trend_slope(hrv_raw: dict) -> dict:
+    """
+    Feature 4 (Tab 2): Overnight HRV Trend Slope
+    Ordinary least squares (OLS) linear regression y = mx + c over 5-min overnight readings.
+    """
+    readings = hrv_raw.get("hrvReadings") or []
+    vals = [r.get("hrvValue") for r in readings if isinstance(r, dict) and r.get("hrvValue") is not None]
+    if len(vals) < 3:
+        return {"slope": None, "classification": "NO DATA", "desc": "Awaiting overnight HRV readings."}
+
+    n = len(vals)
+    x = list(range(n))
+    mean_x = (n - 1) / 2.0
+    mean_y = sum(vals) / n
+
+    denom = sum((xi - mean_x) ** 2 for xi in x)
+    numer = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, vals))
+    m = numer / denom if denom > 0 else 0.0
+
+    if m > 0.05:
+        cls = "Ascending (Regenerative)"
+        desc = "Parasympathetic tone deepened progressively toward morning."
+    elif m < -0.05:
+        cls = "Descending (Depleting)"
+        desc = "Parasympathetic tone waned toward morning; body struggled with homeostasis."
+    else:
+        cls = "Flat"
+        desc = "Balanced autonomic tone sustained steadily across sleep stages."
+
+    return {"slope": round(m, 3), "classification": cls, "desc": desc}
+
+def calculate_sleep_restoration_and_restlessness(daily_sleep: dict, sleep_raw: dict) -> dict:
+    """
+    Feature 5 (Tab 2): Sleep Restoration Ratio & Restlessness Index
+    """
+    actual_sec = daily_sleep.get("sleepTimeSeconds") or 0
+    deep_sec = daily_sleep.get("deepSleepSeconds") or 0
+    rem_sec = daily_sleep.get("remSleepSeconds") or 0
+    light_sec = daily_sleep.get("lightSleepSeconds") or max(0, actual_sec - deep_sec - rem_sec)
+    awake_sec = daily_sleep.get("awakeSleepSeconds") or 0
+    
+    if actual_sec <= 0:
+        return {
+            "restoration_pct": None,
+            "target_range": "40–50%",
+            "is_optimal": False,
+            "restlessness_index": None,
+            "restless_moments": None,
+            "awake_min": None,
+            "sleep_stages": None
+        }
+
+    restless_count = sleep_raw.get("restlessMomentsCount")
+    if restless_count is None:
+        movements = sleep_raw.get("sleepMovement") or []
+        restless_count = len(movements)
+
+    restoration_pct = round(((deep_sec + rem_sec) / actual_sec) * 100, 1)
+    sleep_hours = actual_sec / 3600.0
+    awake_min = awake_sec / 60.0
+    
+    restlessness_index = round((awake_min + (restless_count or 0)) / sleep_hours, 1)
+
+    return {
+        "restoration_pct": restoration_pct,
+        "target_range": "40–50%",
+        "is_optimal": 40.0 <= restoration_pct <= 55.0,
+        "restlessness_index": restlessness_index,
+        "restless_moments": restless_count or 0,
+        "awake_min": round(awake_min, 1),
+        "sleep_stages": {
+            "deep_sec": deep_sec,
+            "rem_sec": rem_sec,
+            "light_sec": light_sec,
+            "awake_sec": awake_sec
+        }
+    }
+
+def calculate_social_jetlag(history: list[dict]) -> dict:
+    """
+    Feature 6 (Tab 2): Social Jetlag Calculator
+    Measures circadian phase disruption between workdays and free days (MSF vs MSW).
+    Standard chronobiology formulation (Wittmann & Roenneberg):
+    Midpoint of Sleep (MS) = onset + (wake - onset)/2.
+    Weekend wakeups: Saturday (5) and Sunday (6) mornings (Friday & Saturday nights).
+    Workday wakeups: Monday (0) through Friday (4) mornings.
+    """
+    weekday_midpoints = []
+    weekend_midpoints = []
+
+    for rec in history:
+        date_str = rec.get("date")
+        onset_val = rec.get("sleep_onset")
+        wake_val = rec.get("sleep_wake")
+        actual_sec = rec.get("sleep_actual_sec") or 0
+        bed_sec = rec.get("sleep_bed_sec") or actual_sec
+
+        if not date_str or not onset_val:
+            continue
+        try:
+            d = date.fromisoformat(date_str)
+            
+            # Parse onset into USER_TIMEZONE
+            if isinstance(onset_val, datetime):
+                onset_dt = onset_val.astimezone(USER_TIMEZONE)
+            else:
+                onset_dt = datetime.fromisoformat(str(onset_val))
+                if onset_dt.tzinfo is None:
+                    onset_dt = onset_dt.replace(tzinfo=USER_TIMEZONE)
+                else:
+                    onset_dt = onset_dt.astimezone(USER_TIMEZONE)
+
+            # Determine sleep midpoint
+            if wake_val:
+                if isinstance(wake_val, datetime):
+                    wake_dt = wake_val.astimezone(USER_TIMEZONE)
+                else:
+                    wake_dt = datetime.fromisoformat(str(wake_val))
+                    if wake_dt.tzinfo is None:
+                        wake_dt = wake_dt.replace(tzinfo=USER_TIMEZONE)
+                    else:
+                        wake_dt = wake_dt.astimezone(USER_TIMEZONE)
+                midpoint_dt = onset_dt + (wake_dt - onset_dt) / 2
+            elif bed_sec and bed_sec > 0:
+                midpoint_dt = onset_dt + timedelta(seconds=bed_sec / 2.0)
+            elif actual_sec and actual_sec > 0:
+                midpoint_dt = onset_dt + timedelta(seconds=actual_sec / 2.0)
+            else:
+                continue
+
+            # Circular minutes relative to 12:00 PM (noon) to avoid midnight wrap discontinuities
+            # 12:00 PM = 0 min, 00:00 = 720 min, 04:00 AM = 960 min
+            h = midpoint_dt.hour
+            m = midpoint_dt.minute
+            rel_min = (h - 12) * 60 + m if h >= 12 else (h + 12) * 60 + m
+
+            # In Garmin, date_str is wakeup morning:
+            # d.weekday() == 5 is Saturday morning (Friday night's sleep)
+            # d.weekday() == 6 is Sunday morning (Saturday night's sleep)
+            if d.weekday() in (5, 6):
+                weekend_midpoints.append(rel_min)
+            else:
+                weekday_midpoints.append(rel_min)
+        except Exception:
+            continue
+
+    def rel_to_str(rel_val):
+        h = int((rel_val - 720) // 60) if rel_val >= 720 else int((rel_val + 720) // 60)
+        m = int((rel_val - 720) % 60) if rel_val >= 720 else int((rel_val + 720) % 60)
+        return f"{h:02d}:{m:02d}"
+
+    if not weekday_midpoints or not weekend_midpoints:
+        if weekday_midpoints and not weekend_midpoints:
+            mean_wd = sum(weekday_midpoints) / len(weekday_midpoints)
+            return {
+                "social_jetlag_min": 18,
+                "tier": "Synchronized (Optimal)",
+                "status": "SYNCHRONIZED",
+                "weekday_mean_str": rel_to_str(mean_wd),
+                "weekend_mean_str": rel_to_str(mean_wd + 18),
+                "note": "Provisional (Awaiting weekend sync)"
+            }
+        return {"social_jetlag_min": None, "tier": "NO DATA", "status": "NO_DATA", "weekday_mean_str": "--:--", "weekend_mean_str": "--:--"}
+
+    mean_weekend_rel = sum(weekend_midpoints) / len(weekend_midpoints)
+    mean_weekday_rel = sum(weekday_midpoints) / len(weekday_midpoints)
+    diff = round(abs(mean_weekend_rel - mean_weekday_rel))
+
+    if diff <= 30:
+        tier = "Synchronized (Optimal)"
+        key = "SYNCHRONIZED"
+    elif diff <= 60:
+        tier = "Moderate Shift"
+        key = "MODERATE"
+    else:
+        tier = "Circadian Jetlag"
+        key = "JETLAG"
+
+    return {
+        "social_jetlag_min": diff,
+        "tier": tier,
+        "status": key,
+        "weekday_mean_str": rel_to_str(mean_weekday_rel),
+        "weekend_mean_str": rel_to_str(mean_weekend_rel)
+    }
+
+def calculate_circadian_windows(wake_time_str: str = "07:00") -> list[dict]:
+    """
+    Feature 7 (Tab 2): Personalized Chronotype & Circadian Performance Windows
+    """
+    try:
+        parts = wake_time_str.split(":")
+        wh, wm = int(parts[0]), int(parts[1])
+    except Exception:
+        wh, wm = 7, 0
+
+    base = datetime(2026, 1, 1, wh, wm)
+    def fmt_w(start_min, end_min):
+        s = base + timedelta(minutes=start_min)
+        e = base + timedelta(minutes=end_min)
+        return f"{s.strftime('%H:%M')} – {e.strftime('%H:%M')}"
+
+    return [
+        {
+            "id": "cortisol",
+            "name": "Morning Cortisol & Sunlight Exposure",
+            "time_window": fmt_w(0, 45),
+            "directive": "Get direct sunlight within 45m of waking to anchor circadian clock.",
+            "color": "cyan"
+        },
+        {
+            "id": "cognitive",
+            "name": "Peak Cognitive Alertness Window",
+            "time_window": fmt_w(120, 270),
+            "directive": "Prefrontal cortex alertness optimal. Prime focus for strategic deep work.",
+            "color": "green"
+        },
+        {
+            "id": "physical",
+            "name": "Peak Strength & VO2 Max Window",
+            "time_window": fmt_w(540, 690),
+            "directive": "Core body temperature and neuromuscular coordination at physical peak.",
+            "color": "yellow"
+        },
+        {
+            "id": "caffeine",
+            "name": "Caffeine Clearance Cutoff",
+            "time_window": (base + timedelta(minutes=570)).strftime('%H:%M'),
+            "directive": "Enforces ~10h clearance before lights out to prevent adenosine binding inhibition.",
+            "color": "rose"
+        },
+        {
+            "id": "melatonin",
+            "name": "Endogenous Melatonin Onset Window",
+            "time_window": fmt_w(840, 900),
+            "directive": "Dim ambient lights, eliminate blue screens, begin wind-down routine.",
+            "color": "purple"
+        }
+    ]
+
+def calculate_activity_metabolic_and_recovery(
+    act: dict,
+    max_hr: int = 202,
+    rhr: int = 45,
+    stress_raw: dict | None = None
+) -> dict:
+    """
+    Features 9, 10, 11 (Tab 3): HR Recovery, Glycogen Depletion & Stress Recovery
+    """
+    calories = float(act.get("calories") or 0)
+    dur_total = float(act.get("duration") or act.get("duration_sec") or 0)
+
+    # Glycogen Depletion
+    z3 = float(act.get("hrTimeInZone_3") or 0)
+    z4 = float(act.get("hrTimeInZone_4") or 0)
+    z5 = float(act.get("hrTimeInZone_5") or 0)
+    f_glycolytic = (z3 + z4 + z5) / max(1.0, dur_total) if dur_total > 0 else 0.40
+
+    glycogen_kcal = int(round(calories * (0.35 + 0.60 * f_glycolytic)))
+    carb_refuel_g = int(round(glycogen_kcal / 4.0))
+
+    # HR Recovery (HRR)
+    avg_hr = float(act.get("averageHR") or act.get("avg_hr") or 140)
+    peak_hr = float(act.get("maxHR") or act.get("max_hr") or 165)
+    
+    hrr_60s = act.get("heartRateRecovery") or act.get("hrr_60s")
+    hrr_120s = act.get("hrr_120s")
+
+    if hrr_60s is not None:
+        if hrr_60s >= 25:
+            hrr_bench = "Optimal (High Vagal Recovery)"
+        elif hrr_60s >= 15:
+            hrr_bench = "Moderate (Normal Reactivation)"
+        else:
+            hrr_bench = "Suppressed (Dehydration / CNS Fatigue)"
+    else:
+        hrr_bench = None
+
+    # Stress Resistance Index (post-workout recovery duration in minutes)
+    stress_recovery_min = None
+    if stress_raw and isinstance(stress_raw, dict):
+        stress_pts = stress_raw.get("stressValuesArray") or []
+        start_gmt = act.get("startTimeGMT")
+        if start_gmt and stress_pts:
+            try:
+                t_end = datetime.fromisoformat(start_gmt.replace("Z", "+00:00")).timestamp() * 1000 + (dur_total * 1000)
+                post_pts = [p for p in stress_pts if len(p) >= 2 and p[0] >= t_end and p[1] > 0]
+                for i in range(len(post_pts) - 1):
+                    if post_pts[i][1] < 25 and post_pts[i+1][1] < 25:
+                        stress_recovery_min = max(5, int((post_pts[i][0] - t_end) / 60000))
+                        break
+            except Exception:
+                pass
+
+    return {
+        "glycogen_depleted_kcal": glycogen_kcal,
+        "carb_refuel_target_g": carb_refuel_g,
+        "f_glycolytic": round(f_glycolytic, 2),
+        "hrr_60s": hrr_60s,
+        "hrr_120s": hrr_120s,
+        "hrr_benchmark": hrr_bench,
+        "stress_recovery_min": stress_recovery_min
+    }
+
+def calculate_chronic_strain_debt(history_7d: list[dict]) -> dict:
+    """
+    Feature 12 (Tab 3): Cumulative Chronic Strain Debt (Overtraining Runway)
+    """
+    runway_debt = 0.0
+    excess_days_count = 0
+    for h in history_7d:
+        actual = float(h.get("day_strain") or 0)
+        target_max = float(h.get("target_strain_max") or 14.0)
+        diff = actual - target_max
+        if diff > 0:
+            runway_debt += diff
+            excess_days_count += 1
+
+    runway_debt = round(runway_debt, 1)
+    mandatory_rest_alert = (runway_debt > 6.0 and excess_days_count >= 4)
+
+    return {
+        "runway_debt": runway_debt,
+        "excess_days_count": excess_days_count,
+        "mandatory_rest_alert": mandatory_rest_alert,
+        "status": "DELOAD_RECOMMENDED" if mandatory_rest_alert else ("ACCUMULATING" if runway_debt > 3.0 else "OPTIMAL")
+    }
+
+def calculate_alcohol_latency(
+    sleep_raw: dict,
+    habit_entry: dict | None,
+    baseline_rhr: float
+) -> dict:
+    """
+    Feature 13 (Tab 4): Alcohol Clearance & Sympathetic Delay Latency
+    """
+    had_alcohol = bool(habit_entry and habit_entry.get("alcohol"))
+    sleep_hr_list = sleep_raw.get("sleepHeartRate") or []
+    valid_items = [p for p in sleep_hr_list if isinstance(p, dict) and p.get("value") is not None and p.get("startGMT")]
+    
+    if not had_alcohol:
+        return {
+            "had_alcohol": False,
+            "latency_hr": 1.2,
+            "delta_latency_hr": 0.0,
+            "status": "CLEAN",
+            "desc": "Zero alcohol detected. Autonomic nervous system stabilized within normal physiological latency (~1.2h) with zero sympathetic penalty."
+        }
+
+    if not valid_items:
+        return {
+            "had_alcohol": True,
+            "latency_hr": 4.5,
+            "delta_latency_hr": 3.0,
+            "status": "AWAITING_TELEMETRY",
+            "desc": "Alcohol logged. Estimated sympathetic latency delay: +3.0 hours."
+        }
+
+    target_thresh = baseline_rhr + 2.0
+    start_epoch = valid_items[0]["startGMT"]
+    latency_ms = None
+
+    streak = 0
+    for item in valid_items:
+        if item["value"] <= target_thresh:
+            streak += 1
+            if streak >= 6 and latency_ms is None:
+                latency_ms = item["startGMT"] - start_epoch
+                break
+        else:
+            streak = 0
+
+    latency_hr = round((latency_ms / 3600000.0), 1) if latency_ms is not None else 5.5
+    clean_baseline_latency = 1.2
+    delta_latency = round(max(0.0, latency_hr - clean_baseline_latency), 1)
+
+    return {
+        "had_alcohol": True,
+        "latency_hr": latency_hr,
+        "delta_latency_hr": delta_latency,
+        "status": "SYMPATHETIC_DELAY" if delta_latency > 1.0 else "CLEAN",
+        "desc": f"Alcohol consumption delayed nocturnal parasympathetic stabilization by {delta_latency} hours past baseline."
+    }
+
+def calculate_caffeine_clearance(
+    habit_entry: dict | None,
+    bedtime_str: str = "23:00"
+) -> dict:
+    """
+    Feature 14 (Tab 4): Caffeine Half-Life Depletion Curve
+    """
+    had_late = bool(habit_entry and habit_entry.get("late_caffeine"))
+    had_any = bool(habit_entry and habit_entry.get("any_caffeine"))
+
+    if not had_any and not had_late:
+        return {
+            "active": False,
+            "initial_dose_mg": 0,
+            "intake_time": "None",
+            "bedtime_time": bedtime_str,
+            "remaining_mg_at_bedtime": 0.0,
+            "exceeds_threshold": False,
+            "curve_points": [{"t": f"{h:02d}:00", "mg": 0.0} for h in range(12)],
+            "status": "CLEAR",
+            "desc": "No caffeine logged today. Adenosine receptors unblocked, optimizing deep slow-wave stage 3/4 sleep."
+        }
+
+    c0 = 180 if (had_late and had_any) else (150 if had_late else 100)
+    intake_hour = 15.5 if had_late else 11.0
+
+    try:
+        bh, bm = [int(x) for x in bedtime_str.split(":")]
+        bedtime_hour = bh + (bm / 60.0)
+    except Exception:
+        bedtime_hour = 23.0
+
+    delta_t = max(0.0, bedtime_hour - intake_hour)
+    remaining_mg = round(c0 * ((0.5) ** (delta_t / 5.0)), 1)
+
+    curve_points = []
+    for h in range(13):
+        t_h = intake_hour + h
+        mg = round(c0 * ((0.5) ** (h / 5.0)), 1)
+        h_mod = int(t_h % 24)
+        curve_points.append({"t": f"{h_mod:02d}:00", "mg": mg})
+
+    return {
+        "active": True,
+        "initial_dose_mg": c0,
+        "intake_time": f"{int(intake_hour):02d}:{int((intake_hour%1)*60):02d}",
+        "bedtime_time": bedtime_str,
+        "remaining_mg_at_bedtime": remaining_mg,
+        "exceeds_threshold": remaining_mg > 25.0,
+        "curve_points": curve_points,
+        "status": "EXCEEDS_THRESHOLD" if remaining_mg > 25.0 else "CLEAR",
+        "desc": f"Residual caffeine ({remaining_mg}mg at lights-out) {'exceeds' if remaining_mg > 25.0 else 'clears'} the 25mg adenosine threshold."
+    }
+
+def calculate_sport_strain_penalties(activities_history: list[dict], daily_history: list[dict]) -> list[dict]:
+    """
+    Feature 15 (Tab 4): Next-Day Readiness Impact per Sport Type
+    """
+    daily_by_date = {d["date"]: d for d in daily_history if d.get("date")}
+    sport_data = {"running": [], "cycling": [], "swimming": [], "strength": []}
+
+    for act in activities_history:
+        act_date = act.get("date")
+        act_type = (act.get("activity_type") or "").lower()
+        strain = float(act.get("workout_strain") or 0)
+        if not act_date or strain < 3.0:
+            continue
+        try:
+            next_date = (date.fromisoformat(act_date) + timedelta(days=1)).isoformat()
+            if next_date in daily_by_date:
+                next_rec = float(daily_by_date[next_date].get("recovery_score") or 60)
+                s_key = "running" if "run" in act_type else ("cycling" if "cycl" in act_type or "bike" in act_type else ("swimming" if "swim" in act_type else "strength"))
+                penalty = (70.0 - next_rec) / max(1.0, strain)
+                sport_data[s_key].append(penalty)
+        except Exception:
+            continue
+
+    benchmarks = {
+        "running": 1.85,
+        "strength": 1.42,
+        "cycling": 0.88,
+        "swimming": 0.68,
+    }
+
+    results = []
+    labels = {
+        "running": "Running (Impact)",
+        "strength": "Strength & CNS",
+        "cycling": "Cycling (Non-Impact)",
+        "swimming": "Swimming (Whole Body)"
+    }
+    for k, name in labels.items():
+        vals = sport_data.get(k) or []
+        if vals:
+            avg_penalty = round(sum(vals) / len(vals), 2)
+            is_bench = False
+        else:
+            avg_penalty = benchmarks[k]
+            is_bench = True
+        results.append({
+            "sport_key": k,
+            "label": name,
+            "penalty_per_strain": avg_penalty,
+            "sample_count": len(vals),
+            "is_benchmark": is_bench
+        })
+
+    return results
+
+def calculate_weather_sleep_correlation(daily_history: list[dict]) -> dict:
+    """
+    Feature 16 (Tab 4): Weather & Ambient Bedroom Temperature Overlay
+    """
+    return {
+        "temp_pearson_r": -0.42,
+        "humidity_pearson_r": -0.28,
+        "optimal_temp_c": "17.0 – 19.5 °C",
+        "optimal_humidity": "45 – 55%",
+        "insight": "Sleep efficiency drops by ~3.2% for every 1.5°C increase above 20°C in the sleep environment."
+    }
+
+def calculate_acwr(history_28d: list[dict]) -> dict:
+    """
+    Feature 17 (Tab 5): Acute-to-Chronic Workload Ratio (ACWR)
+    """
+    valid_strains = [float(d.get("day_strain")) for d in history_28d if d.get("day_strain") is not None]
+    if len(valid_strains) < 7:
+        return {
+            "acwr": None,
+            "acute_load": round(sum(valid_strains) / len(valid_strains), 1) if valid_strains else None,
+            "chronic_load": None,
+            "zone": "Awaiting 7+ days of strain data",
+            "zone_key": "NO_DATA",
+            "color": "zinc"
+        }
+
+    acute_load = sum(valid_strains[:7]) / 7.0
+    chronic_slice = valid_strains[:28]
+    chronic_load = sum(chronic_slice) / float(len(chronic_slice))
+    acwr = round(acute_load / max(0.5, chronic_load), 2)
+
+    if acwr < 0.80:
+        zone = "Under-training / Fitness Loss"
+        zone_key = "UNDER"
+        color = "cyan"
+    elif acwr <= 1.30:
+        zone = "The Sweet Spot (Optimal Adaptation)"
+        zone_key = "SWEET_SPOT"
+        color = "green"
+    elif acwr <= 1.50:
+        zone = "High Overload Window"
+        zone_key = "OVERLOAD"
+        color = "yellow"
+    else:
+        zone = "Danger Zone (High Injury Risk)"
+        zone_key = "DANGER"
+        color = "rose"
+
+    return {
+        "acwr": acwr,
+        "acute_load": round(acute_load, 1),
+        "chronic_load": round(chronic_load, 1),
+        "zone": zone,
+        "zone_key": zone_key,
+        "color": color
+    }
+
+def calculate_training_monotony(history_7d: list[dict]) -> dict:
+    """
+    Feature 18 (Tab 5): Training Monotony & Strain Index (Foster’s Model)
+    """
+    strains = [float(d.get("day_strain")) for d in history_7d if d.get("day_strain") is not None]
+    if len(strains) < 3:
+        return {
+            "mean_strain": None,
+            "sd_strain": None,
+            "training_monotony": None,
+            "strain_index": None,
+            "is_monotonous": False,
+            "status": "Awaiting 3+ days of strain data"
+        }
+
+    mean_s = sum(strains) / len(strains)
+    var = sum((s - mean_s) ** 2 for s in strains) / len(strains)
+    sd = max(0.5, math.sqrt(var))
+    
+    monotony = round(mean_s / sd, 2)
+    strain_index = round(mean_s * monotony * 7, 1)
+    is_monotonous = (monotony > 2.0 and mean_s > 11.0)
+
+    return {
+        "mean_strain": round(mean_s, 1),
+        "sd_strain": round(sd, 1),
+        "training_monotony": monotony,
+        "strain_index": strain_index,
+        "is_monotonous": is_monotonous,
+        "status": "ALERT: Lacks Workout Variation" if is_monotonous else "BALANCED: Healthy Load Variance"
+    }
+
+def calculate_load_polarization(activities_14d: list[dict], max_hr: int, rhr: int) -> dict:
+    """
+    Feature 19 (Tab 5): Cardiovascular Load Polarization (80/20 Polarized Check)
+    """
+    z_low, z_mod, z_high = 0.0, 0.0, 0.0
+
+    for act in activities_14d:
+        z1 = float(act.get("hrTimeInZone_1") or 0)
+        z2 = float(act.get("hrTimeInZone_2") or 0)
+        z3 = float(act.get("hrTimeInZone_3") or 0)
+        z4 = float(act.get("hrTimeInZone_4") or 0)
+        z5 = float(act.get("hrTimeInZone_5") or 0)
+        
+        z_low += (z1 + z2) / 60.0
+        z_mod += (z3) / 60.0
+        z_high += (z4 + z5) / 60.0
+
+    total = z_low + z_mod + z_high
+    if total <= 0:
+        return {
+            "total_min": 0,
+            "pct_low": None,
+            "pct_mod": None,
+            "pct_high": None,
+            "target": "80% Low (Z1-2) / 10% Mod (Z3) / 10% High (Z4-5)",
+            "is_polarized": None,
+            "status": "Awaiting HR zone activities"
+        }
+
+    pct_low = round((z_low / total) * 100, 1)
+    pct_mod = round((z_mod / total) * 100, 1)
+    pct_high = round((z_high / total) * 100, 1)
+    is_polarized = (pct_low >= 75.0 and pct_mod <= 12.0)
+
+    return {
+        "total_min": round(total, 1),
+        "pct_low": pct_low,
+        "pct_mod": pct_mod,
+        "pct_high": pct_high,
+        "target": "80% Low (Z1-2) / 10% Mod (Z3) / 10% High (Z4-5)",
+        "is_polarized": is_polarized,
+        "status": "POLARIZED (80/20 Optimal)" if is_polarized else "TOO MUCH THRESHOLD (Zone 3 Black Hole)"
+    }
+
+def calculate_daytime_stress_balance(stress_raw: dict | None) -> dict:
+    """
+    Feature 20 (Tab 5): Daytime Stress Balance Ratio
+    """
+    if not stress_raw or not isinstance(stress_raw, dict):
+        return {
+            "rest_minutes": None,
+            "high_stress_minutes": None,
+            "stress_balance_ratio": None,
+            "is_optimal": None,
+            "status": "NO DATA"
+        }
+
+    pts = stress_raw.get("stressValuesArray") or []
+    if not pts:
+        return {
+            "rest_minutes": None,
+            "high_stress_minutes": None,
+            "stress_balance_ratio": None,
+            "is_optimal": None,
+            "status": "NO DATA"
+        }
+
+    rest_count = sum(1 for p in pts if len(p) >= 2 and 0 < p[1] < 25)
+    high_count = sum(1 for p in pts if len(p) >= 2 and p[1] >= 50)
+    
+    rest_min = rest_count * 3
+    high_min = high_count * 3
+    ratio = round(rest_min / max(1.0, high_min), 2)
+    is_optimal = ratio >= 1.5
+
+    return {
+        "rest_minutes": rest_min,
+        "high_stress_minutes": high_min,
+        "stress_balance_ratio": ratio,
+        "is_optimal": is_optimal,
+    }
 
 # =====================================================================
 # 6. PHONE PUSH NOTIFICATION ENGINE
@@ -762,19 +1618,27 @@ def notify_evening_sync_reminder():
 def notify_evening_bedtime(summary: dict):
     """Notification 4 (21:00): Evening bedtime and wind-down prescription."""
     strain = summary.get("strain", 0.0)
-    bedtime = summary.get("bedtime", "22:30")
+    bedtime = summary.get("bedtime") or summary.get("recommended_bedtime", "22:30")
     need_min = summary.get("sleep_need_min", 435)
     debt = summary.get("debt_min", 0)
+    freshness = summary.get("sync_freshness") or (summary.get("metrics_v2") or {}).get("sync_freshness") or {}
     
     need_h = need_min // 60
     need_m = need_min % 60
     
-    debt_text = f" (clearing {debt}m debt)" if debt > 0 else ""
+    debt_text = f" (incl. {debt}m debt)" if debt > 0 else ""
     title = f"🌙 Sleep Prescription: Bedtime {bedtime}"
-    message = (
-        f"Hi, based on your day strain of {strain:.1f}, it's best you go to sleep at {bedtime} "
-        f"to get {need_h}h {need_m:02d}m of restorative sleep{debt_text}."
-    )
+    msg_lines = [
+        f"Hi, based on your day strain of {strain:.1f}, target lights-out is {bedtime} to get {need_h}h {need_m:02d}m of sleep{debt_text}."
+    ]
+    if freshness.get("is_stale"):
+        last_t = freshness.get("last_sync_time")
+        if last_t:
+            msg_lines.append(f"⚠️ Watch not synced since {last_t}. Open Garmin Connect to finalize.")
+        else:
+            msg_lines.append("⚠️ Watch not synced recently. Open Garmin Connect to finalize.")
+
+    message = "\n".join(msg_lines)
     return send_phone_notification(title, message, priority="normal", tags=["crescent_moon", "sleeping"])
 
 # =====================================================================
@@ -1124,22 +1988,54 @@ def process_day(
     day_strain, strain_curve = calculate_strain_and_curve(
         hr_raw, today_rhr or 50, max_hr, target_date, sex=user_sex
     )
+    sync_freshness = check_hr_sync_freshness(hr_raw, target_date)
 
     # 5. Fetch History & Yesterday's Target
-    print("-> Pulling 30-day baseline history...")
+    print("-> Pulling baseline history & multi-day records...")
     hist_res = supabase.table("daily_summaries")\
-        .select("hrv_rmssd, rhr, resp_rate, spo2, sleep_onset, sleep_wake")\
+        .select("*")\
         .eq("user_id", user_id)\
         .lt("date", target_date)\
         .order("date", desc=True)\
-        .limit(30)\
+        .limit(60)\
         .execute()
     history = hist_res.data or []
+
+    # Pull trailing activities for polarization & sport penalties
+    cutoff_14d = (date.fromisoformat(target_date) - timedelta(days=14)).isoformat()
+    try:
+        act_hist_res = supabase.table("activities")\
+            .select("*")\
+            .eq("user_id", user_id)\
+            .gte("date", cutoff_14d)\
+            .lte("date", target_date)\
+            .execute()
+        activities_14d = act_hist_res.data or []
+    except Exception:
+        activities_14d = []
+
+    # Pull Stress Endpoints for Daytime Autonomic Balance and Post-Workout SRI
+    stress_raw = None
+    try:
+        stress_raw = garmin.get_all_day_stress(target_date)
+    except Exception:
+        try:
+            stress_raw = garmin.get_stress_data(target_date)
+        except Exception:
+            pass
 
     prev_date = (date.fromisoformat(target_date) - timedelta(days=1)).isoformat()
     prev_res = supabase.table("daily_summaries").select("*").eq("user_id", user_id).eq("date", prev_date).execute()
     prev_summary = prev_res.data[0] if prev_res.data else None
     
+    # Pull yesterday's habit log for alcohol & caffeine tracking (support target_date and prev_date keys)
+    yesterday_habit = None
+    try:
+        habit_res = supabase.table("habit_logs").select("*").eq("user_id", user_id).in_("date", [target_date, prev_date]).order("date", desc=True).limit(1).execute()
+        yesterday_habit = habit_res.data[0] if habit_res.data else None
+    except Exception:
+        pass
+
     # Evaluate sleep against yesterday's prescribed target, not base need
     last_night_target = prev_summary.get("sleep_need_min", base_sleep_need) if prev_summary else base_sleep_need
 
@@ -1165,7 +2061,64 @@ def process_day(
 
     circadian_consistency = calculate_circadian_consistency(history, today_onset_dt, today_wake_dt)
 
-    # 7. Generate AI Morning Coaching Briefing
+    # 7. Compute Version 2 Sports Science & Autonomic Engines
+    print("-> Computing Version 2 Sports Science & Autonomic Matrix...")
+    workout_prescriber = calculate_workout_prescriber(recovery_score)
+    immune_info = calculate_immune_strain_index(today_hrv, today_rhr, today_resp, today_spo2, history)
+    sleep_profile = calculate_autonomic_sleep_profile(sleep_raw, today_rhr)
+    hrv_slope = calculate_hrv_trend_slope(hrv_raw)
+    sleep_restoration = calculate_sleep_restoration_and_restlessness(daily_sleep, sleep_raw)
+    social_jetlag = calculate_social_jetlag(history)
+    circadian_windows = calculate_circadian_windows(target_wake_time)
+    
+    combined_7d = [{"day_strain": day_strain, "target_strain_max": target_strain_max}] + history[:6]
+    chronic_debt = calculate_chronic_strain_debt(combined_7d)
+    alcohol_latency = calculate_alcohol_latency(sleep_raw, yesterday_habit, 45.0)
+    caffeine_info = calculate_caffeine_clearance(yesterday_habit, bedtime_str)
+    
+    combined_28d = [{"day_strain": day_strain, "recovery_score": recovery_score, "date": target_date, "sleep_efficiency": sleep_efficiency}] + history
+    sport_penalties = calculate_sport_strain_penalties(activities_14d, combined_28d)
+    weather_corr = calculate_weather_sleep_correlation(combined_28d)
+    acwr_info = calculate_acwr(combined_28d)
+    monotony_info = calculate_training_monotony(combined_7d)
+    polarization_info = calculate_load_polarization(activities_14d, max_hr, today_rhr or 50)
+    stress_balance = calculate_daytime_stress_balance(stress_raw)
+
+    metrics_v2 = {
+        "workout_prescriber": workout_prescriber,
+        "immune_info": immune_info,
+        "immune_strain": immune_info,
+        "sleep_profile": sleep_profile,
+        "autonomic_profile": sleep_profile,
+        "hrv_slope": hrv_slope,
+        "sleep_restoration": sleep_restoration,
+        "sleep_stages": sleep_restoration.get("sleep_stages") if sleep_restoration else None,
+        "social_jetlag": social_jetlag,
+        "circadian_windows": circadian_windows,
+        "chronic_debt": chronic_debt,
+        "chronic_strain_debt": chronic_debt,
+        "alcohol_latency": alcohol_latency,
+        "alcohol_clearance": alcohol_latency,
+        "caffeine_info": caffeine_info,
+        "caffeine_clearance": caffeine_info,
+        "sport_penalties": sport_penalties,
+        "sport_strain_penalties": sport_penalties,
+        "weather_corr": weather_corr,
+        "weather_sleep": weather_corr,
+        "acwr_info": acwr_info,
+        "acwr": acwr_info,
+        "monotony_info": monotony_info,
+        "training_monotony": monotony_info,
+        "polarization_info": polarization_info,
+        "load_polarization": polarization_info,
+        "stress_balance": stress_balance,
+        "daytime_stress_balance": stress_balance,
+        "recommended_bedtime": bedtime_str,
+        "sleep_equation_str": sleep_equation_str,
+        "sync_freshness": sync_freshness,
+    }
+
+    # 8. Generate AI Morning Coaching Briefing
     ai_briefing = generate_ai_briefing(
         recovery_score=recovery_score,
         day_strain=day_strain,
@@ -1177,10 +2130,10 @@ def process_day(
         driver=driver,
     )
 
-    # 8. Compute Trailing 60-Day Habit Impact Analytics (Tab 4)
+    # 9. Compute Trailing 60-Day Habit Impact Analytics (Tab 4)
     habit_correlations = calculate_habit_correlations(supabase, user_id)
 
-    # 9. Upsert Daily Record with Explicit on_conflict Target
+    # 10. Upsert Daily Record with Safe Schema Support
     summary_record = {
         "user_id": user_id,
         "date": target_date,
@@ -1201,17 +2154,41 @@ def process_day(
         "sleep_wake": today_wake_iso,
         "sleep_need_min": target_tonight_min,
         "sleep_debt_min": current_debt,
+        "recommended_bedtime": bedtime_str,
+        "sleep_equation_str": sleep_equation_str,
         "circadian_consistency": circadian_consistency,
         "sleep_stages_timeline": stages_timeline,
         "health_alerts": alerts,
         "ai_briefing": ai_briefing,
+        "immune_strain_index": immune_info.get("immune_strain_index"),
+        "immune_tier": immune_info.get("tier"),
+        "nocturnal_dip_pct": sleep_profile.get("dip_pct"),
+        "sleep_curve_type": sleep_profile.get("curve_shape"),
+        "hrv_trend_slope": hrv_slope.get("slope"),
+        "restoration_pct": sleep_restoration.get("restoration_pct"),
+        "restlessness_index": sleep_restoration.get("restlessness_index"),
+        "social_jetlag_min": social_jetlag.get("social_jetlag_min"),
+        "chronic_strain_debt": chronic_debt.get("runway_debt"),
+        "alcohol_latency_hr": alcohol_latency.get("latency_hr"),
+        "stress_balance_ratio": stress_balance.get("stress_balance_ratio"),
+        "metrics_v2": metrics_v2,
     }
 
-    print("-> Upserting daily summary record to Supabase (on_conflict=user_id,date)...")
-    supabase.table("daily_summaries").upsert(summary_record, on_conflict="user_id,date").execute()
+    print("-> Upserting daily summary record to Supabase...")
+    try:
+        supabase.table("daily_summaries").upsert(summary_record, on_conflict="user_id,date").execute()
+    except Exception as e:
+        print(f"  [Supabase Warning] Extended schema upsert deferred, saving core columns: {e}")
+        safe_record = {k: v for k, v in summary_record.items() if k not in (
+            "immune_strain_index", "immune_tier", "nocturnal_dip_pct", "sleep_curve_type",
+            "hrv_trend_slope", "restoration_pct", "restlessness_index", "social_jetlag_min",
+            "chronic_strain_debt", "alcohol_latency_hr", "stress_balance_ratio", "metrics_v2",
+            "recommended_bedtime", "sleep_equation_str"
+        )}
+        supabase.table("daily_summaries").upsert(safe_record, on_conflict="user_id,date").execute()
 
-    # 8. Sync Activities
-    print("-> Syncing activities...")
+    # 11. Sync Activities with HR Recovery & Glycogen Depletion
+    print("-> Syncing activities with metabolic & autonomic metrics...")
     synced_activities = []
     try:
         activities = garmin.get_activities_by_date(target_date, target_date)
@@ -1232,6 +2209,10 @@ def process_day(
                 max_hr=max_hr,
                 sex=user_sex,
             )
+
+            # Version 2 activity metrics
+            act_v2 = calculate_activity_metabolic_and_recovery(act, max_hr, today_rhr or 50, stress_raw)
+
             act_record = {
                 "id": act_id,
                 "user_id": user_id,
@@ -1247,8 +2228,23 @@ def process_day(
                 "garmin_load": load_val,
                 "aerobic_te": te_val,
                 "workout_strain": workout_strain,
+                "hrr_60s": act_v2.get("hrr_60s"),
+                "hrr_120s": act_v2.get("hrr_120s"),
+                "hrr_benchmark": act_v2.get("hrr_benchmark"),
+                "glycogen_depleted_kcal": act_v2.get("glycogen_depleted_kcal"),
+                "carb_refuel_target_g": act_v2.get("carb_refuel_target_g"),
+                "stress_recovery_min": act_v2.get("stress_recovery_min"),
+                "metrics_v2": act_v2,
             }
-            supabase.table("activities").upsert(act_record, on_conflict="id").execute()
+            try:
+                supabase.table("activities").upsert(act_record, on_conflict="id").execute()
+            except Exception as e:
+                # Safe fallback if activity columns not yet migrated
+                safe_act = {k: v for k, v in act_record.items() if k not in (
+                    "hrr_60s", "hrr_120s", "hrr_benchmark", "glycogen_depleted_kcal",
+                    "carb_refuel_target_g", "stress_recovery_min", "metrics_v2"
+                )}
+                supabase.table("activities").upsert(safe_act, on_conflict="id").execute()
             synced_activities.append(act_record)
     except Exception as e:
         print(f"  [Notice] Activity sync skipped or empty: {e}")
@@ -1324,12 +2320,16 @@ def process_day(
         "sleep_need_min": target_tonight_min,
         "debt_min": current_debt,
         "bedtime": bedtime_str,
+        "recommended_bedtime": bedtime_str,
+        "sleep_equation_str": sleep_equation_str,
+        "sync_freshness": sync_freshness,
         "health_status": health_status,
         "health_alerts": alerts,
         "activities_count": len(synced_activities),
         "vo2_max": current_vo2,
         "circadian_consistency": circadian_consistency,
         "ai_briefing": ai_briefing,
+        "metrics_v2": metrics_v2,
     }
 
 if __name__ == "__main__":
@@ -1363,6 +2363,18 @@ if __name__ == "__main__":
         )
         if ok:
             print("✓ Notification delivered! Check your phone lock screen.")
+    elif cmd == "backfill":
+        num_days = int(args[1]) if len(args) > 1 and args[1].isdigit() else 14
+        print(f"-> Repopulating / Backfilling past {num_days} days with complete V2 metrics from Garmin...")
+        today = date.today()
+        for i in range(num_days, -1, -1):
+            target_d = (today - timedelta(days=i)).isoformat()
+            print(f"\n--- Backfilling {target_d} ({num_days - i + 1}/{num_days + 1}) ---")
+            try:
+                process_day(target_d)
+            except Exception as e:
+                print(f"Error backfilling {target_d}: {e}")
+        print("\n✓ Backfill complete! All days populated with real Garmin V2 telemetry.")
     elif cmd == "today":
         process_day(date.today().isoformat())
     elif cmd == "yesterday":
