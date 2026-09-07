@@ -617,12 +617,13 @@ def calculate_habit_correlations(supabase: Client, user_id: str) -> list[dict]:
 # 6. PHONE PUSH NOTIFICATION ENGINE
 # =====================================================================
 
-def send_phone_notification(title: str, message: str, priority: str = "normal", tags: list | None = None) -> bool:
+def send_phone_notification(title: str, message: str, priority: str = "normal", tags: list | None = None, return_details: bool = False):
     """
     Delivers a push notification directly to the user's phone lock screen.
-    Supports ntfy.sh (zero-setup instant mobile push), OneSignal REST API, or generic Webhook.
+    Supports OneSignal REST API, ntfy.sh, or generic Webhook.
     """
     delivered = False
+    details = {"channel": None, "recipients": 0, "id": None, "errors": None}
 
     # 1. ntfy.sh (Instant phone push: free iOS/Android app subscribed to your private topic)
     ntfy_topic = os.getenv("NTFY_TOPIC")
@@ -641,9 +642,12 @@ def send_phone_notification(title: str, message: str, priority: str = "normal", 
             with urllib.request.urlopen(req, timeout=5) as resp:
                 if resp.status == 200:
                     delivered = True
+                    details["channel"] = "ntfy"
+                    details["recipients"] = 1
                     print(f"  ✓ Push delivered to phone via ntfy.sh ({ntfy_topic})")
         except Exception as e:
             print(f"  [Push Error] ntfy.sh failed: {e}")
+            details["errors"] = str(e)
 
     # 2. OneSignal REST API (Native iOS PWA Web Push directly to your phone)
     onesignal_app_id = os.getenv("ONESIGNAL_APP_ID")
@@ -654,7 +658,7 @@ def send_phone_notification(title: str, message: str, priority: str = "normal", 
             url = "https://onesignal.com/api/v1/notifications"
             payload = {
                 "app_id": onesignal_app_id,
-                "included_segments": ["Subscribed Users"],
+                "included_segments": ["Total Subscriptions", "Active Subscriptions", "Subscribed Users"],
                 "headings": {"en": title},
                 "contents": {"en": message},
             }
@@ -671,11 +675,23 @@ def send_phone_notification(title: str, message: str, priority: str = "normal", 
                 method="POST"
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
-                if resp.status == 200:
+                resp_raw = resp.read().decode("utf-8")
+                resp_data = json.loads(resp_raw) if resp_raw else {}
+                recipients = resp_data.get("recipients", 0)
+                errors = resp_data.get("errors")
+                notif_id = resp_data.get("id")
+                details["channel"] = "onesignal"
+                details["id"] = notif_id
+                details["recipients"] = recipients
+                details["errors"] = errors
+                if resp.status == 200 and (recipients > 0 or notif_id):
                     delivered = True
-                    print(f"  ✓ Push delivered to iPhone via OneSignal")
+                    print(f"  ✓ Push delivered to iPhone via OneSignal (ID: {notif_id}, recipients: {recipients})")
+                elif errors:
+                    print(f"  [OneSignal Notice] {errors}")
         except Exception as e:
             print(f"  [Push Error] OneSignal failed: {e}")
+            details["errors"] = str(e)
 
     # 3. Generic Webhook (Discord / Slack / Pushover / Home Assistant)
     webhook_url = os.getenv("NOTIFY_WEBHOOK_URL")
@@ -698,6 +714,8 @@ def send_phone_notification(title: str, message: str, priority: str = "normal", 
     if not (ntfy_topic or (onesignal_app_id and onesignal_api_key) or webhook_url):
         print("  [Push Notice] No phone notification channel configured. Add NTFY_TOPIC or ONESIGNAL_* to .env")
 
+    if return_details:
+        return delivered, details
     return delivered
 
 def notify_morning_sync_reminder():

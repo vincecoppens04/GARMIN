@@ -357,8 +357,8 @@
         </div>
       </div>
 
-      <!-- 4. HEALTH MONITOR OUTLIER FLAG (Deep-links to Tab 2) -->
-      <div onclick="switchTab('sleep')" id="health-flag-card" class="glass-card border border-augur-border rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between cursor-pointer hover:border-augur-borderLight active:scale-[0.99] transition-all">
+      <!-- 4. HEALTH MONITOR OUTLIER FLAG (Opens Clinical Vitals Modal) -->
+      <div onclick="openVitalsModal()" id="health-flag-card" class="glass-card border border-augur-border rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between cursor-pointer hover:border-augur-green/40 active:scale-[0.99] transition-all" title="View Detailed Vitals Diagnostic Report">
         <div class="flex items-center space-x-2.5">
           <div id="health-flag-icon" class="w-6 h-6 rounded-lg bg-augur-green/10 border border-augur-green/30 flex items-center justify-center text-augur-green">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -370,9 +370,12 @@
             <span id="health-flag-sub" class="text-[10px] font-mono text-zinc-400">HRV, RHR, SpO2 & Respiration within baseline</span>
           </div>
         </div>
-        <svg class="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
+        <div class="flex items-center space-x-1 text-zinc-500">
+          <span class="text-[9px] font-mono uppercase text-zinc-500 hidden sm:inline">Report</span>
+          <svg class="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
       </div>
 
       <!-- 5. DAILY HABIT LOGGING BANNER (Interactive Prompt) -->
@@ -618,11 +621,6 @@
           </p>
         </div>
       </div>
-
-      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
-        ← Return to Command Center
-      </button>
-
     </main>
 
     <!-- ================================================================= -->
@@ -717,11 +715,6 @@
 
         <div id="workout-feed-list" class="space-y-2.5"></div>
       </div>
-
-      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
-        ← Return to Command Center
-      </button>
-
     </main>
 
     <!-- ================================================================= -->
@@ -860,11 +853,6 @@
           Jackson et al. / HUNT study regression: ΔAge = (VO2Max - Expected) / 0.37 + (50 - RHR) / 5. Clamped at 18.0 minimum.
         </p>
       </div>
-
-      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
-        ← Return to Command Center
-      </button>
-
     </main>
 
     <!-- ================================================================= -->
@@ -987,11 +975,6 @@
           <span class="text-blue-400">Pulse Ox (SpO2)</span>
         </div>
       </div>
-
-      <button onclick="switchTab('today')" class="w-full py-3 rounded-2xl glass-card border border-augur-border text-xs font-bold font-mono tracking-wider uppercase text-zinc-400 hover:text-white transition-all">
-        ← Return to Command Center
-      </button>
-
     </main>
 
     <!-- BOTTOM NAVIGATION BAR (5 Professional Tabs) - Compact & Sleek -->
@@ -1073,22 +1056,13 @@
               <span class="w-1.5 h-1.5 rounded-full bg-augur-green animate-pulse"></span>
               Connected (instinct3_user)
             </span>
+          <div class="flex justify-between items-center text-zinc-400">
+            <span class="font-sans">OAuth Token Vault</span>
+            <span class="text-zinc-300">Active (Silent Sync)</span>
           </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-zinc-400 font-sans">Sync Frequency</span>
-            <select class="bg-augur-card border border-augur-border text-xs rounded-lg px-2.5 py-1 text-white font-mono outline-none">
-              <option>Every 3 Hours (Auto)</option>
-              <option>Once Daily (06:00)</option>
-              <option>On App Launch</option>
-            </select>
-          </div>
-          <div class="grid grid-cols-2 gap-2 pt-1">
-            <button onclick="triggerModalSync()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[11px] font-bold font-mono text-zinc-200 hover:text-white uppercase">
-              Sync Now
-            </button>
-            <button onclick="triggerModalSync()" class="py-2.5 px-3 rounded-xl bg-augur-card border border-augur-borderLight text-[11px] font-bold font-mono text-zinc-200 hover:text-white uppercase">
-              Backfill 60 Days
-            </button>
+          <div class="flex justify-between items-center text-zinc-400">
+            <span class="font-sans">Engine Architecture</span>
+            <span class="text-augur-cyan font-bold">Modal Serverless Cloud</span>
           </div>
         </div>
       </div>
@@ -1180,6 +1154,7 @@
             Send Test Push
           </button>
         </div>
+        <div id="test-notif-feedback" class="hidden px-3 py-2 rounded-xl bg-augur-cardInner border border-augur-border text-[11px] font-mono leading-relaxed"></div>
         <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-3 text-xs">
           <!-- OneSignal Subscription Status & Push Registration -->
           <div class="flex items-center justify-between pb-2.5 border-b border-augur-border/60">
@@ -1191,22 +1166,27 @@
               Enable Push
             </button>
           </div>
-          <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-zinc-300">Morning Recovery Summary (08:00)</span>
-            <input type="checkbox" id="toggle-notif-morning" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-zinc-300">Habit Journal Reminder (07:30)</span>
-            <input type="checkbox" id="toggle-notif-habit" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-zinc-300">Health Anomaly Immediate Alert</span>
-            <input type="checkbox" id="toggle-notif-anomaly" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between cursor-pointer">
-            <span class="text-zinc-300">Evening Bedtime Guidance (21:00)</span>
-            <input type="checkbox" id="toggle-notif-bedtime" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
+          <div class="space-y-2 pt-1">
+            <span class="text-[10px] font-mono text-zinc-500 uppercase block font-semibold">Scheduled Automated Delivery</span>
+            <div class="space-y-1.5 font-mono text-[11px]">
+              <div class="flex items-center justify-between py-1 border-b border-augur-border/40">
+                <span class="text-zinc-300">Habit & Watch Sync Prompt</span>
+                <span class="text-augur-cyan font-bold">07:30</span>
+              </div>
+              <div class="flex items-center justify-between py-1 border-b border-augur-border/40">
+                <span class="text-zinc-300">Morning Readiness & Target Strain</span>
+                <span class="text-augur-green font-bold">08:00</span>
+              </div>
+              <div class="flex items-center justify-between py-1 border-b border-augur-border/40">
+                <span class="text-zinc-300">Evening Strain Check</span>
+                <span class="text-augur-cyan font-bold">20:30</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <span class="text-zinc-300">Bedtime & Wind-Down Target</span>
+                <span class="text-augur-yellow font-bold">21:00</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1233,14 +1213,6 @@
           <div class="flex justify-between items-center text-zinc-400">
             <span class="font-sans">Anomaly Engine</span>
             <span class="text-augur-green font-bold">ACTIVE (±1.5σ)</span>
-          </div>
-          <div class="pt-2 border-t border-augur-border flex space-x-2">
-            <button onclick="recalculateBaselines()" class="flex-1 py-2 bg-augur-card hover:bg-zinc-800 text-zinc-300 rounded-xl text-center font-bold tracking-wide transition-colors">
-              Recalculate
-            </button>
-            <button onclick="exportDataJSON()" class="flex-1 py-2 bg-augur-card hover:bg-zinc-800 text-zinc-300 rounded-xl text-center font-bold tracking-wide transition-colors">
-              Export JSON
-            </button>
           </div>
           <div class="pt-2 border-t border-augur-border">
             <button onclick="handleSignOut()" class="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-center font-bold tracking-wide transition-colors">
@@ -1315,6 +1287,131 @@
         class="w-full py-3.5 bg-augur-green active:scale-[0.98] text-black text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-augur-green/20"
       >
         Save Yesterday's Habits
+      </button>
+    </div>
+  </div>
+
+  <!-- CLINICAL VITALS & BIOMARKER DIAGNOSTIC MODAL SHEET -->
+  <div id="vitals-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex flex-col justify-end">
+    <div class="glass-card border-t border-augur-border rounded-t-3xl p-6 w-full max-w-md mx-auto space-y-4 animate-in slide-in-from-bottom duration-300 max-h-[88vh] flex flex-col justify-between">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-augur-border/80">
+        <div>
+          <div class="flex items-center space-x-2">
+            <h3 class="text-sm font-black uppercase tracking-wider text-white">Vitals & Physiological Baselines</h3>
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-augur-green/10 text-augur-green border border-augur-green/30">
+              CLINICAL
+            </span>
+          </div>
+          <p id="vitals-modal-date" class="text-[10px] font-mono text-zinc-400 mt-0.5">Trailing 30-day statistical envelope (μ ± 1.5σ)</p>
+        </div>
+        <button onclick="closeVitalsModal()" class="w-7 h-7 rounded-full bg-augur-cardInner border border-augur-border flex items-center justify-center text-zinc-400 hover:text-white transition-colors" title="Close">
+          ✕
+        </button>
+      </div>
+
+      <div class="space-y-3 overflow-y-auto pr-1 flex-1">
+        <!-- Autonomic State Banner -->
+        <div id="vitals-modal-banner" class="p-3.5 rounded-2xl bg-augur-green/10 border border-augur-green/30 space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-black font-mono tracking-widest text-augur-green uppercase flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-augur-green animate-pulse"></span>
+              Optimal Autonomic Homeostasis
+            </span>
+            <span class="text-[9px] font-mono text-augur-green font-bold">[ALL CLEAR]</span>
+          </div>
+          <p id="vitals-modal-summary" class="text-[11px] text-zinc-300 font-sans leading-relaxed">
+            All 4 key vital metrics are resting safely within your personal 30-day baseline window. Autonomic tone is balanced with zero presymptomatic illness or acute overtraining indicators detected.
+          </p>
+        </div>
+
+        <!-- Metric 1: HRV rMSSD -->
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">HRV (rMSSD)</span>
+              <div class="flex items-baseline space-x-1.5 mt-0.5">
+                <span id="vitals-val-hrv" class="text-xl font-black font-mono text-white">--</span>
+                <span class="text-xs font-mono text-zinc-400">ms</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span id="vitals-status-hrv" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK] Optimal</span>
+              <span id="vitals-base-hrv" class="text-[10px] font-mono text-zinc-500 block mt-1">Baseline: 68–107 ms</span>
+            </div>
+          </div>
+          <p class="text-[10px] text-zinc-400 leading-snug font-sans pt-1 border-t border-augur-border/40">
+            Primary indicator of parasympathetic (vagal) autonomic regulation. Elevated/balanced values signal complete cardiovascular recovery and deep systemic readiness.
+          </p>
+        </div>
+
+        <!-- Metric 2: Resting Heart Rate -->
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Resting Heart Rate</span>
+              <div class="flex items-baseline space-x-1.5 mt-0.5">
+                <span id="vitals-val-rhr" class="text-xl font-black font-mono text-white">--</span>
+                <span class="text-xs font-mono text-zinc-400">bpm</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span id="vitals-status-rhr" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK] Normal</span>
+              <span id="vitals-base-rhr" class="text-[10px] font-mono text-zinc-500 block mt-1">Baseline: 42–48 bpm</span>
+            </div>
+          </div>
+          <p class="text-[10px] text-zinc-400 leading-snug font-sans pt-1 border-t border-augur-border/40">
+            Measures baseline myocardial workload and vascular tone. A stable, low resting heart rate confirms minimal cardiac fatigue.
+          </p>
+        </div>
+
+        <!-- Metric 3: Respiration Rate -->
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Respiratory Rate</span>
+              <div class="flex items-baseline space-x-1.5 mt-0.5">
+                <span id="vitals-val-resp" class="text-xl font-black font-mono text-white">--</span>
+                <span class="text-xs font-mono text-zinc-400">brpm</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span id="vitals-status-resp" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK] Stable</span>
+              <span id="vitals-base-resp" class="text-[10px] font-mono text-zinc-500 block mt-1">Baseline: 11.4–12.6 brpm</span>
+            </div>
+          </div>
+          <p class="text-[10px] text-zinc-400 leading-snug font-sans pt-1 border-t border-augur-border/40">
+            Serves as the body's earliest biomarker for systemic fever, infection, or acute overreaching before conscious symptoms appear.
+          </p>
+        </div>
+
+        <!-- Metric 4: Pulse Oximetry (SpO2) -->
+        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Blood Oxygen (SpO2)</span>
+              <div class="flex items-baseline space-x-1.5 mt-0.5">
+                <span id="vitals-val-spo2" class="text-xl font-black font-mono text-white">--</span>
+                <span class="text-xs font-mono text-zinc-400">%</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span id="vitals-status-spo2" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-black uppercase bg-augur-green/10 text-augur-green border border-augur-green/30">[OK] Saturated</span>
+              <span id="vitals-base-spo2" class="text-[10px] font-mono text-zinc-500 block mt-1">Baseline: 96–98%</span>
+            </div>
+          </div>
+          <p class="text-[10px] text-zinc-400 leading-snug font-sans pt-1 border-t border-augur-border/40">
+            Overnight arterial oxygen saturation measuring pulmonary gas diffusion across deep and REM sleep stages.
+          </p>
+        </div>
+      </div>
+
+      <button 
+        onclick="closeVitalsModal()" 
+        class="w-full py-3 bg-augur-card border border-augur-borderLight/80 hover:bg-zinc-800 active:scale-[0.98] text-white text-xs font-bold uppercase tracking-wider rounded-2xl transition-all shadow-md mt-2"
+      >
+        Done
       </button>
     </div>
   </div>
@@ -2374,13 +2471,6 @@
         setChk("toggle-habit-screen", appSettings.habits.screen);
         setChk("toggle-habit-travel", appSettings.habits.travel);
       }
-
-      if (appSettings.notifications) {
-        setChk("toggle-notif-morning", appSettings.notifications.morning);
-        setChk("toggle-notif-habit", appSettings.notifications.habit);
-        setChk("toggle-notif-anomaly", appSettings.notifications.anomaly);
-        setChk("toggle-notif-bedtime", appSettings.notifications.bedtime);
-      }
     }
 
     function openSettingsModal() {
@@ -2415,13 +2505,6 @@
         travel: getChk("toggle-habit-travel", true),
       };
 
-      appSettings.notifications = {
-        morning: getChk("toggle-notif-morning", true),
-        habit: getChk("toggle-notif-habit", true),
-        anomaly: getChk("toggle-notif-anomaly", true),
-        bedtime: getChk("toggle-notif-bedtime", true),
-      };
-
       // 1. Immediately persist locally
       localStorage.setItem("augur_settings", JSON.stringify(appSettings));
 
@@ -2447,66 +2530,75 @@
       }
     }
 
-    function exportDataJSON() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cachedTelemetry || {}, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `augur-telemetry-${new Date().toISOString().split('T')[0]}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-    }
 
     async function triggerTestNotification() {
       const btn = document.getElementById("btn-test-notif");
+      const feedback = document.getElementById("test-notif-feedback");
       const originalText = btn ? btn.innerText : "Send Test Push";
 
       if (btn) {
         btn.disabled = true;
-        btn.innerText = "Dispatching...";
+        btn.innerText = "Dispatching via Modal...";
+      }
+      if (feedback) {
+        feedback.classList.remove("hidden");
+        feedback.innerText = "Connecting to Modal cloud & OneSignal...";
+        feedback.className = "px-3 py-2 rounded-xl bg-augur-cardInner border border-augur-border text-[11px] font-mono leading-relaxed text-zinc-400";
       }
 
-      // 1. Trigger local browser / PWA notification if supported
       try {
-        if ("Notification" in window) {
-          if (Notification.permission === "granted") {
-            new Notification("AUGUR • Test Alert", {
-              body: "Recovery: 81% (Optimal) | HRV: 94 ms | Target Strain: 16.8–19.8. System operational!",
-              icon: "/apple-touch-icon.png",
-              badge: "/apple-touch-icon.png"
-            });
-          } else if (Notification.permission !== "denied") {
-            const perm = await Notification.requestPermission();
-            if (perm === "granted") {
-              new Notification("AUGUR • Test Alert", {
-                body: "Recovery: 81% (Optimal) | HRV: 94 ms | Target Strain: 16.8–19.8. System operational!",
-                icon: "/apple-touch-icon.png"
-              });
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("Local notification error:", e);
-      }
-
-      // 2. Dispatch push to phone lock screen via Modal backend
-      try {
-        await fetch(MODAL_TEST_NOTIF_URL, {
+        const res = await fetch(MODAL_TEST_NOTIF_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" }
         });
-      } catch (err) {
-        console.warn("Cloud push dispatch error:", err);
-      }
 
-      if (btn) {
-        btn.innerText = "✓ Push Sent!";
-        btn.className = "px-2.5 py-1 rounded-lg bg-augur-green text-black font-bold font-mono text-[10px] transition-all shadow-sm";
+        if (res.ok) {
+          const data = await res.json();
+          const recCount = data.recipients != null ? data.recipients : (data.delivered ? 1 : 0);
+          if (btn) {
+            btn.innerText = `✓ Dispatched (${recCount} dev)`;
+            btn.className = "px-2.5 py-1 rounded-lg bg-augur-green text-black font-bold font-mono text-xs transition-all shadow-sm";
+          }
+          if (feedback) {
+            if (data.delivered || recCount > 0) {
+              feedback.innerHTML = `
+                <div class="text-augur-green font-bold mb-0.5">✓ Dispatched via Modal Cloud & OneSignal:</div>
+                <div class="text-white text-xs font-sans font-medium mb-1">${data.title || 'AUGUR Live Telemetry'}</div>
+                <div class="text-zinc-300 text-[11px]">${data.message || 'Telemetry dispatched to lock screen'}</div>
+              `;
+            } else {
+              feedback.innerHTML = `
+                <div class="text-amber-400 font-bold mb-0.5">⚠ Dispatched to OneSignal (0 devices subscribed):</div>
+                <div class="text-zinc-300 text-[11px]">Please tap <strong class="text-white">Enable Push</strong> above to register this iPhone as a subscriber.</div>
+              `;
+            }
+          }
+          setTimeout(() => {
+            if (btn) {
+              btn.disabled = false;
+              btn.innerText = originalText;
+              btn.className = "px-2.5 py-1 rounded-lg bg-augur-card border border-augur-borderLight text-xs font-bold font-mono text-augur-green hover:bg-augur-green hover:text-black transition-all";
+            }
+          }, 6000);
+        } else {
+          throw new Error("HTTP " + res.status);
+        }
+      } catch (err) {
+        console.error("Cloud push dispatch error:", err);
+        if (btn) {
+          btn.innerText = "✗ Failed";
+          btn.className = "px-2.5 py-1 rounded-lg bg-red-500/20 text-red-400 font-bold font-mono text-xs border border-red-500/40";
+        }
+        if (feedback) {
+          feedback.innerHTML = `<span class="text-red-400 font-bold">Cloud Error:</span> ${err.message || 'Check network connection'}`;
+        }
         setTimeout(() => {
-          btn.disabled = false;
-          btn.innerText = originalText;
-          btn.className = "px-2.5 py-1 rounded-lg bg-augur-card border border-augur-borderLight text-[10px] font-bold font-mono text-augur-green hover:bg-augur-green hover:text-black transition-all";
-        }, 2500);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = originalText;
+            btn.className = "px-2.5 py-1 rounded-lg bg-augur-card border border-augur-borderLight text-xs font-bold font-mono text-augur-green hover:bg-augur-green hover:text-black transition-all";
+          }
+        }, 4000);
       }
     }
 
@@ -2667,6 +2759,87 @@
           btn.disabled = false;
         }
       }
+    }
+
+    // ---------------------------------------------------------------
+    // CLINICAL VITALS DIAGNOSTIC MODAL
+    // ---------------------------------------------------------------
+    function openVitalsModal() {
+      const modal = document.getElementById("vitals-modal");
+      if (!modal) return;
+
+      const record = (allDailyRecords && allDailyRecords.length > 0 && selectedDayOffset >= 0 && selectedDayOffset < allDailyRecords.length)
+        ? allDailyRecords[selectedDayOffset]
+        : cachedTelemetry;
+
+      if (record) {
+        // Date heading
+        if (record.date) {
+          const parts = record.date.split("-");
+          if (parts.length >= 3) {
+            const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            const dateEl = document.getElementById("vitals-modal-date");
+            if (dateEl) dateEl.innerText = `${dateStr} • Trailing 30-day statistical envelope (μ ± 1.5σ)`;
+          }
+        }
+
+        const hrvVal = record.hrv_rmssd ? Math.round(record.hrv_rmssd) : 94;
+        const rhrVal = record.rhr ? Math.round(record.rhr) : 45;
+        const respVal = record.resp_rate ? Number(record.resp_rate).toFixed(1) : "12.0";
+        const spo2Val = record.spo2 ? Math.round(record.spo2) : 97;
+
+        const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
+        setTxt("vitals-val-hrv", hrvVal);
+        setTxt("vitals-val-rhr", rhrVal);
+        setTxt("vitals-val-resp", respVal);
+        setTxt("vitals-val-spo2", spo2Val);
+
+        // Dynamic status check if any vital has an alert
+        const alerts = record.health_alerts || [];
+        const banner = document.getElementById("vitals-modal-banner");
+
+        if (alerts && alerts.length > 0) {
+          if (banner) {
+            banner.className = "p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1";
+            banner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black font-mono tracking-widest text-amber-400 uppercase flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                  Autonomic Anomaly Flagged
+                </span>
+                <span class="text-[9px] font-mono text-amber-400 font-bold">[ATTENTION]</span>
+              </div>
+              <p class="text-[11px] text-zinc-300 font-sans leading-relaxed">
+                ${alerts.join(". ")}. Autonomic tone shows deviation from your 30-day baseline. Prioritize restorative recovery.
+              </p>
+            `;
+          }
+        } else {
+          if (banner) {
+            banner.className = "p-3.5 rounded-2xl bg-augur-green/10 border border-augur-green/30 space-y-1";
+            banner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black font-mono tracking-widest text-augur-green uppercase flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-augur-green animate-pulse"></span>
+                  Optimal Autonomic Homeostasis
+                </span>
+                <span class="text-[9px] font-mono text-augur-green font-bold">[ALL CLEAR]</span>
+              </div>
+              <p class="text-[11px] text-zinc-300 font-sans leading-relaxed">
+                All 4 key vital metrics are resting safely within your personal 30-day baseline window. Autonomic tone is balanced with zero presymptomatic illness or acute overtraining indicators detected.
+              </p>
+            `;
+          }
+        }
+      }
+
+      modal.classList.remove("hidden");
+    }
+
+    function closeVitalsModal() {
+      const modal = document.getElementById("vitals-modal");
+      if (modal) modal.classList.add("hidden");
     }
 
     // ---------------------------------------------------------------

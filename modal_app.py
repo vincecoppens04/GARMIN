@@ -33,91 +33,74 @@ token_volume = modal.Volume.from_name("garmin-tokens", create_if_missing=True)
 TOKENSTORE_PATH = "/root/.garminconnect"
 
 # =====================================================================
-# THE 4 SCHEDULED CRON JOBS (Europe/Brussels Timezone)
+# CORE ENGINE HELPERS
 # =====================================================================
 
-@app.function(image=image, secrets=[augur_secret], schedule=modal.Cron("30 7 * * *", timezone="Europe/Brussels"))
-def morning_reminder():
-    """Notification 1 (07:30): Prompt user to sync watch over Bluetooth."""
-    from pipeline import notify_morning_sync_reminder
-    print("[07:30 Cron] Dispatching Morning Sync Reminder to phone...")
-    notify_morning_sync_reminder()
-
-@app.function(
-    image=image, 
-    secrets=[augur_secret], 
-    volumes={TOKENSTORE_PATH: token_volume},
-    schedule=modal.Cron("0 8 * * *", timezone="Europe/Brussels"), 
-    timeout=180
-)
-def morning_sync():
-    """Notification 2 (08:00): Run pipeline, calculate readiness & dispatch briefing."""
-    from pipeline import process_day, notify_morning_readiness
-    today_str = date.today().isoformat()
-    print(f"[08:00 Cron] Running Daily Telemetry Pipeline for {today_str}...")
-    summary = process_day(today_str)
-    token_volume.commit()
-    print(f"[08:00 Cron] Dispatching Daily Situation Briefing (Recovery: {summary.get('recovery')}%, Strain Target: {summary.get('target_strain_min')}-{summary.get('target_strain_max')})...")
-    notify_morning_readiness(summary)
-
-@app.function(image=image, secrets=[augur_secret], schedule=modal.Cron("30 20 * * *", timezone="Europe/Brussels"))
-def evening_reminder():
-    """Notification 3 (20:30): Prompt user to sync today's strain."""
-    from pipeline import notify_evening_sync_reminder
-    print("[20:30 Cron] Dispatching Evening Sync Reminder to phone...")
-    notify_evening_sync_reminder()
-
-@app.function(
-    image=image, 
-    secrets=[augur_secret], 
-    volumes={TOKENSTORE_PATH: token_volume},
-    schedule=modal.Cron("0 21 * * *", timezone="Europe/Brussels"), 
-    timeout=180
-)
-def evening_sync():
-    """Notification 4 (21:00): Calculate bedtime prescription & dispatch wind-down."""
-    from pipeline import process_day, notify_evening_bedtime
-    today_str = date.today().isoformat()
-    print(f"[21:00 Cron] Running Bedtime Engine for {today_str}...")
-    summary = process_day(today_str)
-    token_volume.commit()
-    print(f"[21:00 Cron] Dispatching Bedtime Prescription (Target Lights-Out: {summary.get('bedtime')})...")
-    notify_evening_bedtime(summary)
-
-# =====================================================================
-# ON-DEMAND WEBHOOK API FOR THE "SYNC NOW" BUTTON IN AUGUR PWA
-# =====================================================================
-
-@app.function(
-    image=image, 
-    secrets=[augur_secret], 
-    volumes={TOKENSTORE_PATH: token_volume},
-    timeout=180
-)
-@modal.fastapi_endpoint(method="POST")
-def sync_now():
+def _sync_and_backfill(garmin, supabase_tuple, lookback_days=7):
     """
-    Public HTTPS Webhook endpoint triggered when tapping 'Sync Now' in AUGUR on iPhone.
-    Fetches fresh Garmin endpoints, updates Supabase, and returns latest telemetry JSON.
-    Reuses persistent OAuth tokens stored in garmin-tokens volume to avoid sign-in emails.
+    Checks the past `lookback_days` in Supabase daily_summaries.
+    If any day is missing or lacks sleep/HR data (e.g. user didn't sync watch for a few days),
+    fetches from Garmin and processes each day in strict chronological order (T-n -> T-1 -> T).
+    Returns the summary for today.
     """
     from pipeline import process_day
-    today_str = date.today().isoformat()
-    print(f"[API Webhook] Received 'Sync Now' request for {today_str}...")
-    summary = process_day(today_str, quiet=True)
-    token_volume.commit()
-    return get_telemetry()
+    from datetime import date, timedelta
 
-@app.function(image=image, secrets=[augur_secret], timeout=30)
-@modal.fastapi_endpoint(method="GET")
-def get_telemetry():
+    supabase, user_id = supabase_tuple
+    today = date.today()
+    cutoff = (today - timedelta(days=lookback_days)).isoformat()
+
+    try:
+        existing_res = (
+            supabase.table("daily_summaries")
+            .select("date, sleep_actual_sec, hrv_rmssd")
+            .eq("user_id", user_id)
+            .gte("date", cutoff)
+            .execute()
+        )
+        existing_records = {r["date"]: r for r in (existing_res.data or [])}
+    except Exception as e:
+        print(f"[Backfill Engine] Warning fetching existing summaries: {e}")
+        existing_records = {}
+
+    days_to_process = set()
+    # Always process today (live data) and yesterday (finalized sleep/strain)
+    days_to_process.add(today.isoformat())
+    days_to_process.add((today - timedelta(days=1)).isoformat())
+
+    # Check days 2 through lookback_days: if missing or lacking sleep/hrv data, backfill
+    for i in range(2, lookback_days + 1):
+        d_str = (today - timedelta(days=i)).isoformat()
+        rec = existing_records.get(d_str)
+        if not rec or not rec.get("sleep_actual_sec") or not rec.get("hrv_rmssd"):
+            days_to_process.add(d_str)
+
+    sorted_days = sorted(list(days_to_process))
+    print(f"[Backfill Engine] Synchronizing & backfilling {len(sorted_days)} day(s) in chronological order: {sorted_days}...")
+
+    summary_today = None
+    for d in sorted_days:
+        is_today = (d == today.isoformat())
+        try:
+            res = process_day(d, garmin=garmin, supabase_tuple=supabase_tuple, quiet=not is_today)
+            if is_today:
+                summary_today = res
+        except Exception as e:
+            print(f"[Backfill Engine] Warning processing {d}: {e}")
+
+    token_volume.commit()
+    return summary_today
+
+def _fetch_telemetry_payload(user_id=None, supabase=None):
     """
-    Public fast-read HTTPS endpoint for the AUGUR PWA frontend.
-    Fetches the latest authenticated daily summary from Supabase and returns JSON,
-    including rolling 30-day baseline envelopes for HRV, RHR, Respiration, and SpO2.
+    Fetches the latest authenticated daily summary and historical records from Supabase,
+    computing 30-day baseline envelopes for vitals, and packing activities, user baselines,
+    and habit correlations into a complete telemetry JSON response.
     """
     from pipeline import get_supabase_client
-    supabase, user_id = get_supabase_client()
+    if supabase is None or user_id is None:
+        supabase, user_id = get_supabase_client()
+
     res = (
         supabase.table("daily_summaries")
         .select("*")
@@ -129,9 +112,9 @@ def get_telemetry():
     records = res.data or []
     if not records:
         return {}
-    
+
     latest = dict(records[0])
-    
+
     # Compute 30-day baseline envelopes (mu +- 1.5 sigma)
     vitals_baseline = {}
     for key, label, unit in [
@@ -156,7 +139,7 @@ def get_telemetry():
                 "baseline_max": b_max,
                 "status": status
             }
-    
+
     latest["vitals_baseline"] = vitals_baseline
 
     # Fetch recent activities for Tab 3 (Activities & Strain) - Limited to 5
@@ -194,6 +177,95 @@ def get_telemetry():
 
     return latest
 
+@app.function(
+    image=image, 
+    secrets=[augur_secret], 
+    volumes={TOKENSTORE_PATH: token_volume},
+    schedule=modal.Cron("0 8 * * *", timezone="Europe/Brussels"), 
+    timeout=180
+)
+def morning_sync():
+    """Notification 2 (08:00): Run pipeline, calculate readiness & dispatch briefing."""
+    from pipeline import notify_morning_readiness, get_garmin_client, get_supabase_client
+    garmin = get_garmin_client()
+    supabase, user_id = get_supabase_client()
+    supabase_tuple = (supabase, user_id)
+
+    print("[08:00 Cron] Checking backfill window and synchronizing daily data...")
+    summary = _sync_and_backfill(garmin, supabase_tuple, lookback_days=7)
+    if summary:
+        print(f"[08:00 Cron] Dispatching Daily Situation Briefing (Recovery: {summary.get('recovery')}%, Strain Target: {summary.get('target_strain_min')}-{summary.get('target_strain_max')})...")
+        notify_morning_readiness(summary)
+
+@app.function(image=image, secrets=[augur_secret], schedule=modal.Cron("30 7 * * *", timezone="Europe/Brussels"))
+def morning_reminder():
+    """Notification 1 (07:30): Prompt user to sync watch over Bluetooth."""
+    from pipeline import notify_morning_sync_reminder
+    print("[07:30 Cron] Dispatching Morning Sync Reminder to phone...")
+    notify_morning_sync_reminder()
+
+@app.function(image=image, secrets=[augur_secret], schedule=modal.Cron("30 20 * * *", timezone="Europe/Brussels"))
+def evening_reminder():
+    """Notification 3 (20:30): Prompt user to sync today's strain."""
+    from pipeline import notify_evening_sync_reminder
+    print("[20:30 Cron] Dispatching Evening Sync Reminder to phone...")
+    notify_evening_sync_reminder()
+
+@app.function(
+    image=image, 
+    secrets=[augur_secret], 
+    volumes={TOKENSTORE_PATH: token_volume},
+    schedule=modal.Cron("0 21 * * *", timezone="Europe/Brussels"), 
+    timeout=180
+)
+def evening_sync():
+    """Notification 4 (21:00): Calculate bedtime prescription & dispatch wind-down."""
+    from pipeline import process_day, notify_evening_bedtime
+    from datetime import date
+    today_str = date.today().isoformat()
+    print(f"[21:00 Cron] Running Bedtime Engine for {today_str}...")
+    summary = process_day(today_str)
+    token_volume.commit()
+    print(f"[21:00 Cron] Dispatching Bedtime Prescription (Target Lights-Out: {summary.get('bedtime')})...")
+    notify_evening_bedtime(summary)
+
+# =====================================================================
+# ON-DEMAND WEBHOOK API FOR THE "SYNC NOW" BUTTON IN AUGUR PWA
+# =====================================================================
+
+@app.function(
+    image=image, 
+    secrets=[augur_secret], 
+    volumes={TOKENSTORE_PATH: token_volume},
+    timeout=180
+)
+@modal.fastapi_endpoint(method="POST")
+def sync_now():
+    """
+    Public HTTPS Webhook endpoint triggered when tapping 'Sync Now' in AUGUR on iPhone.
+    Fetches fresh Garmin endpoints, updates Supabase, and returns latest telemetry JSON.
+    Reuses persistent OAuth tokens stored in garmin-tokens volume to avoid sign-in emails.
+    Automatically checks the past 7 days and backfills any days missed if the watch was not synced.
+    """
+    from pipeline import get_garmin_client, get_supabase_client
+
+    garmin = get_garmin_client()
+    supabase, user_id = get_supabase_client()
+    supabase_tuple = (supabase, user_id)
+
+    _sync_and_backfill(garmin, supabase_tuple, lookback_days=7)
+    return _fetch_telemetry_payload(user_id=user_id, supabase=supabase)
+
+@app.function(image=image, secrets=[augur_secret], timeout=30)
+@modal.fastapi_endpoint(method="GET")
+def get_telemetry():
+    """
+    Public fast-read HTTPS endpoint for the AUGUR PWA frontend.
+    Fetches the latest authenticated daily summary from Supabase and returns JSON,
+    including rolling 30-day baseline envelopes for HRV, RHR, Respiration, and SpO2.
+    """
+    return _fetch_telemetry_payload()
+
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="POST")
 def log_habits(data: dict):
@@ -225,15 +297,53 @@ def log_habits(data: dict):
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="POST")
 def send_test_notification():
-    """Triggers an immediate test push notification to the user's phone."""
-    from pipeline import send_phone_notification
-    success = send_phone_notification(
-        title="AUGUR • Test Notification",
-        message="Recovery: 81% (Optimal) | HRV: 94 ms | Day Target: 16.8–19.8 Strain. Everything is running smoothly!",
-        priority="high",
-        tags=["green_circle", "muscle", "zap"]
+    """Triggers an immediate test push notification with today's live telemetry to the user's phone via OneSignal."""
+    import os
+    from pipeline import get_supabase_client, send_phone_notification
+
+    supabase, user_id = get_supabase_client()
+    res = (
+        supabase.table("daily_summaries")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("date", desc=True)
+        .limit(1)
+        .execute()
     )
-    return {"status": "success", "delivered": success}
+
+    if res.data:
+        today = res.data[0]
+        rec = round(today.get("recovery_score") or 0)
+        driver = today.get("recovery_driver") or "Autonomic tone optimal"
+        hrv = round(today.get("hrv_rmssd") or 0)
+        rhr = round(today.get("rhr") or 0)
+        strain = round(float(today.get("day_strain") or 0), 1)
+        t_min = round(float(today.get("target_strain_min") or 12.0), 1)
+        t_max = round(float(today.get("target_strain_max") or 14.5), 1)
+        date_str = today.get("date") or "Today"
+        title = f"AUGUR • {date_str} Live Telemetry"
+        message = f"Recovery: {rec}% ({driver}) | HRV: {hrv}ms • RHR: {rhr}bpm | Strain: {strain} (Target {t_min}–{t_max})"
+    else:
+        title = "AUGUR • System Notification"
+        message = "AUGUR system connected and operational. Awaiting first telemetry sync."
+
+    delivered, details = send_phone_notification(
+        title=title,
+        message=message,
+        priority="high",
+        tags=["zap", "muscle"],
+        return_details=True
+    )
+
+    return {
+        "status": "success" if delivered else "warning",
+        "delivered": delivered,
+        "recipients": details.get("recipients", 0),
+        "onesignal_id": details.get("id"),
+        "title": title,
+        "message": message,
+        "errors": details.get("errors"),
+    }
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="POST")
