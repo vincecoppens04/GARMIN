@@ -1154,7 +1154,7 @@
                 <svg class="w-3.5 h-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <span id="habit-engine-title">Habit Correlation Engine (Past 30 Days)</span>
+                <span id="habit-engine-title">Habit Correlation Engine (Past 60 Days)</span>
               </span>
               <button onclick="showExplanation('habit_correlations')" class="w-4 h-4 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center text-[9px] font-bold transition-all focus:outline-none" title="Explanation">?</button>
             </div>
@@ -1170,7 +1170,7 @@
 
         <div class="text-[9px] font-mono text-zinc-500 pt-1 border-t border-augur-border/40 flex justify-between">
           <span>Formula: ΔX = X̄_present - X̄_absent</span>
-          <span id="habit-sample-window">Sample window: 30 days</span>
+          <span id="habit-sample-window">Sample window: 60 days</span>
         </div>
       </div>
 
@@ -1797,13 +1797,6 @@
             </div>
           </div>
           <div class="flex items-center justify-between gap-2">
-            <span class="text-zinc-400 font-sans">RHR Calculation</span>
-            <select id="setting-rhr-mode" class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none font-sans shrink-0 max-w-[170px]">
-              <option value="dynamic">Dynamic 30d Mean</option>
-              <option value="fixed">Fixed Floor (45 bpm)</option>
-            </select>
-          </div>
-          <div class="flex items-center justify-between gap-2">
             <span class="text-zinc-400 font-sans">Baseline Sleep Need</span>
             <select id="setting-sleep-need" class="bg-augur-card border border-augur-border text-xs rounded-lg px-2 py-1 text-white outline-none font-sans shrink-0 max-w-[170px]">
               <option value="420">7h 00m (420 min)</option>
@@ -1829,42 +1822,7 @@
         </div>
       </div>
 
-      <!-- 3. CURATED HABIT CHECKLIST TOGGLES -->
-      <div class="space-y-2.5">
-        <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block">Curated Habit Journal Fields</span>
-        <div class="p-3.5 rounded-2xl bg-augur-cardInner border border-augur-border space-y-2">
-          <label class="flex items-center justify-between text-xs cursor-pointer">
-            <span class="text-zinc-300">Alcohol Consumption</span>
-            <input type="checkbox" id="toggle-habit-alcohol" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between text-xs cursor-pointer">
-            <span class="text-zinc-300">Did you party? / Night Out</span>
-            <input type="checkbox" id="toggle-habit-party" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between text-xs cursor-pointer">
-            <span class="text-zinc-300">Late Meal (&lt;2h before sleep)</span>
-            <input type="checkbox" id="toggle-habit-late-meal" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between text-xs cursor-pointer">
-            <span class="text-zinc-300">Caffeine Consumption (Any time)</span>
-            <input type="checkbox" id="toggle-habit-any-caffeine" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between text-xs cursor-pointer">
-            <span class="text-zinc-300">Late Caffeine (After 14:00)</span>
-            <input type="checkbox" id="toggle-habit-late-caffeine" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between text-xs cursor-pointer">
-            <span class="text-zinc-300">Screen Time in Bed (&gt;15 min)</span>
-            <input type="checkbox" id="toggle-habit-screen" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-          <label class="flex items-center justify-between text-xs cursor-pointer">
-            <span class="text-zinc-300">Travel Day / Jetlag</span>
-            <input type="checkbox" id="toggle-habit-travel" checked class="w-4 h-4 accent-augur-green rounded">
-          </label>
-        </div>
-      </div>
-
-      <!-- 4. NOTIFICATIONS -->
+      <!-- 3. NOTIFICATIONS -->
       <div class="space-y-2.5">
         <div class="flex items-center justify-between gap-2">
           <span class="text-[10px] font-bold tracking-widest text-zinc-400 uppercase block truncate">Notifications (Brussels)</span>
@@ -2192,11 +2150,9 @@
 
     const DEFAULT_SETTINGS = {
       max_hr: 202,
-      rhr_mode: "dynamic",
       sleep_need_min: 435,
       target_wake_time: "07:00",
       debt_payback_pct: 0.33,
-      habits: { alcohol: true, party: true, late_meal: true, any_caffeine: true, late_caffeine: true, screen: true, travel: true },
       notifications: { morning: true, habit: true, anomaly: true, bedtime: true }
     };
     let appSettings = { ...DEFAULT_SETTINGS };
@@ -2207,7 +2163,6 @@
         if (saved) {
           const parsed = JSON.parse(saved);
           appSettings = { ...DEFAULT_SETTINGS, ...parsed };
-          if (parsed.habits) appSettings.habits = { ...DEFAULT_SETTINGS.habits, ...parsed.habits };
           if (parsed.notifications) appSettings.notifications = { ...DEFAULT_SETTINGS.notifications, ...parsed.notifications };
         }
       } catch (e) {
@@ -3624,15 +3579,80 @@
     function renderCircadianWindows(v2) {
       const container = document.getElementById("v2-circadian-windows-list");
       if (!container) return;
-      const windows = (v2 && v2.circadian_windows) || [];
-      if (!windows.length) {
-        container.innerHTML = `
-          <div class="p-3 rounded-2xl bg-augur-cardInner border border-augur-border text-center">
-            <span class="text-xs font-mono text-zinc-500">Awaiting sleep timing data to calculate circadian rhythm windows.</span>
-          </div>
-        `;
-        return;
+
+      const wakeTime = (appSettings && appSettings.target_wake_time) || "07:00";
+      const [wh, wm] = wakeTime.split(":").map(Number);
+      const wakeTotalMin = (wh * 60) + wm;
+
+      // Bedtime for caffeine cutoff: directly anchored to Bedtime - 10 hours
+      const bedClockEl = document.getElementById("tab2-bedtime-clock");
+      let bedH = 23, bedM = 15;
+      if (bedClockEl && bedClockEl.innerText && bedClockEl.innerText.includes(":")) {
+        const parts = bedClockEl.innerText.split(":").map(Number);
+        if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+          bedH = parts[0];
+          bedM = parts[1];
+        }
+      } else if (cachedTelemetry && cachedTelemetry.recommended_bedtime) {
+        const parts = cachedTelemetry.recommended_bedtime.split(":").map(Number);
+        if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+          bedH = parts[0];
+          bedM = parts[1];
+        }
       }
+
+      // Helper to format minutes of day into HH:MM
+      const fmtMin = (m) => {
+        const norm = ((m % 1440) + 1440) % 1440;
+        const h = Math.floor(norm / 60);
+        const min = norm % 60;
+        return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+      };
+      const fmtW = (sMin, eMin) => `${fmtMin(wakeTotalMin + sMin)} – ${fmtMin(wakeTotalMin + eMin)}`;
+
+      // Caffeine cutoff: Bedtime - 10 hours (600 minutes)
+      let bedTotalMin = (bedH * 60) + bedM;
+      if (bedTotalMin <= wakeTotalMin) bedTotalMin += 1440; // handle wrap past midnight
+      const caffCutoffMin = bedTotalMin - 600;
+      const caffCutoffStr = fmtMin(caffCutoffMin);
+
+      const windows = [
+        {
+          id: "cortisol",
+          name: "Morning Cortisol & Sunlight Exposure",
+          time_window: fmtW(0, 45),
+          directive: "Get direct sunlight within 45m of waking to anchor circadian clock.",
+          color: "cyan"
+        },
+        {
+          id: "cognitive",
+          name: "Peak Cognitive Alertness Window",
+          time_window: fmtW(120, 270),
+          directive: "Prefrontal cortex alertness optimal. Prime focus for strategic deep work.",
+          color: "green"
+        },
+        {
+          id: "physical",
+          name: "Peak Strength & VO2 Max Window",
+          time_window: fmtW(540, 690),
+          directive: "Core body temperature and neuromuscular coordination at physical peak.",
+          color: "yellow"
+        },
+        {
+          id: "caffeine",
+          name: "Caffeine Clearance Cutoff",
+          time_window: caffCutoffStr,
+          directive: "Enforces ~10h clearance before lights out to prevent adenosine binding inhibition.",
+          color: "rose"
+        },
+        {
+          id: "melatonin",
+          name: "Endogenous Melatonin Onset Window",
+          time_window: fmtW(840, 900),
+          directive: "Dim ambient lights, eliminate blue screens, begin wind-down routine.",
+          color: "purple"
+        }
+      ];
 
       container.innerHTML = windows.map(w => {
         let colorClass = "text-augur-green bg-augur-green/10 border-augur-green/30";
@@ -3674,7 +3694,10 @@
       const userBaseline = (appSettings && appSettings.sleep_need_min) || (cachedTelemetry && cachedTelemetry.user_baselines && cachedTelemetry.user_baselines.baseline_sleep_need_min) || 435;
       const currentDebt = (cachedTelemetry && cachedTelemetry.sleep_debt_min != null) ? cachedTelemetry.sleep_debt_min : 0;
       const debtRate = (appSettings && appSettings.debt_payback_pct != null) ? appSettings.debt_payback_pct : 0.33;
-      const targetNeed = (cachedTelemetry && cachedTelemetry.sleep_need_min) ? cachedTelemetry.sleep_need_min : (userBaseline + Math.min(45, Math.round(currentDebt * debtRate)));
+      const strain = (cachedTelemetry && cachedTelemetry.day_strain != null) ? Number(cachedTelemetry.day_strain) : 0;
+      const strainDemand = Math.max(0, Math.floor(Math.max(0, (strain - 10.0) * 4.8)));
+      const debtPaybackDemand = Math.min(45, Math.max(0, Math.round(currentDebt * debtRate)));
+      const targetNeed = userBaseline + strainDemand + debtPaybackDemand;
 
       // Exact acute ledger formula matching pipeline.py
       const decayedDebt = currentDebt * (1.0 - debtRate);
@@ -3856,7 +3879,7 @@
       }
 
       // Compute elapsed hours to bedtime
-      let bedHour = 23, bedMin = 0;
+      let bedHour = 23, bedMin = 15;
       if (row.sleep_onset) {
         try {
           const od = new Date(row.sleep_onset);
@@ -3865,6 +3888,21 @@
             bedMin = od.getMinutes();
           }
         } catch (e) {}
+      } else {
+        const bedClockEl = document.getElementById("tab2-bedtime-clock");
+        if (bedClockEl && bedClockEl.innerText && bedClockEl.innerText.includes(":")) {
+          const parts = bedClockEl.innerText.split(":").map(Number);
+          if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+            bedHour = parts[0];
+            bedMin = parts[1];
+          }
+        } else if (row.recommended_bedtime) {
+          const parts = row.recommended_bedtime.split(":").map(Number);
+          if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+            bedHour = parts[0];
+            bedMin = parts[1];
+          }
+        }
       }
 
       const [inpH, inpM] = userCaffeineHour.split(':').map(Number);
@@ -3930,7 +3968,10 @@
     }
 
     function renderCaffeineClearance(v2, row) {
-      updateCaffeineSimulator(row);
+      const targetRow = (row && (row.sleep_onset || row.recommended_bedtime || row.date))
+        ? row
+        : (v2 && (v2.sleep_onset || v2.recommended_bedtime || v2.date) ? v2 : cachedTelemetry) || {};
+      updateCaffeineSimulator(targetRow);
     }
 
 
@@ -4347,10 +4388,12 @@
     let activeTimeRange = 30;
 
     function getHistoryForRange(range) {
-      if (cachedTelemetry && cachedTelemetry.history_records && cachedTelemetry.history_records.length > 0) {
-        return cachedTelemetry.history_records.slice(0, range);
-      }
-      return [];
+      const source = (allDailyRecords && Array.isArray(allDailyRecords) && allDailyRecords.length > 0)
+        ? allDailyRecords
+        : (cachedTelemetry && cachedTelemetry.history_records && cachedTelemetry.history_records.length > 0
+          ? cachedTelemetry.history_records
+          : (cachedTelemetry ? [cachedTelemetry] : []));
+      return source.slice(0, range);
     }
 
     function setGlobalTimeRange(days) {
@@ -4424,13 +4467,30 @@
         path.setAttribute("d", "");
         return;
       }
-      const n = values.length;
-      const range = (maxVal - minVal) || 1;
+      const validVals = values.map(v => Number(v)).filter(v => !isNaN(v));
+      if (!validVals.length) {
+        path.setAttribute("d", "");
+        return;
+      }
+      const n = validVals.length;
+      const actualMin = Math.min(...validVals);
+      const actualMax = Math.max(...validVals);
+      const effMin = Math.min(minVal, actualMin);
+      const effMax = Math.max(maxVal, actualMax);
+      const range = (effMax - effMin) || 1;
       const usableH = height - (padY * 2);
-      const pts = values.map((val, i) => {
+
+      if (n === 1) {
+        const clamped = Math.min(effMax, Math.max(effMin, validVals[0]));
+        const y = (height - padY) - ((clamped - effMin) / range) * usableH;
+        path.setAttribute("d", `M 0,${y.toFixed(1)} L ${width},${y.toFixed(1)}`);
+        return;
+      }
+
+      const pts = validVals.map((val, i) => {
         const x = (i / Math.max(1, n - 1)) * width;
-        const clamped = Math.min(maxVal, Math.max(minVal, val));
-        const y = (height - padY) - ((clamped - minVal) / range) * usableH;
+        const clamped = Math.min(effMax, Math.max(effMin, val));
+        const y = (height - padY) - ((clamped - effMin) / range) * usableH;
         return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
       }).join(' ');
       path.setAttribute("d", pts);
@@ -4439,20 +4499,32 @@
     function drawSvgBars(groupId, values, maxVal, colorFn, width = 320, height = 80) {
       const group = document.getElementById(groupId);
       if (!group) return;
-      if (!values || !values.length) {
-        group.innerHTML = "";
-        return;
+      while (group.firstChild) {
+        group.removeChild(group.firstChild);
       }
+      if (!values || !values.length) return;
+
       const n = values.length;
       const barWidth = Math.max(2, Math.min(28, (width / n) - 2));
       const usableH = height - 10;
-      group.innerHTML = values.map((val, i) => {
+      const svgNS = "http://www.w3.org/2000/svg";
+
+      values.forEach((rawVal, i) => {
+        const val = Number(rawVal) || 0;
         const x = (i / n) * width + 2;
         const h = Math.min(usableH, Math.max(3, (val / maxVal) * usableH));
         const y = (height - 5) - h;
         const color = typeof colorFn === 'function' ? colorFn(val, i) : colorFn;
-        return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${color}" />`;
-      }).join('');
+
+        const rect = document.createElementNS(svgNS, "rect");
+        rect.setAttribute("x", x.toFixed(1));
+        rect.setAttribute("y", y.toFixed(1));
+        rect.setAttribute("width", barWidth.toFixed(1));
+        rect.setAttribute("height", h.toFixed(1));
+        rect.setAttribute("rx", "2");
+        rect.setAttribute("fill", color);
+        group.appendChild(rect);
+      });
     }
 
     function formatDateShort(dateStr) {
@@ -4781,21 +4853,16 @@
 
       const tab2BedtimeClock = document.getElementById("tab2-bedtime-clock");
       if (tab2BedtimeClock) {
-        const recBedtime = row.recommended_bedtime || (row.metrics_v2 && row.metrics_v2.recommended_bedtime);
         const wakeTime = appSettings.target_wake_time || "07:00";
-        if (recBedtime && wakeTime === "07:00") {
-          tab2BedtimeClock.innerText = recBedtime;
-        } else {
-          const [wakeH, wakeM] = wakeTime.split(":").map(Number);
-          const wakeMinuteOfDay = (wakeH * 60) + wakeM;
-          const totalBedtimeMin = totalNeedMin + 15;
-          let bedtimeMinuteOfDay = wakeMinuteOfDay - totalBedtimeMin;
-          while (bedtimeMinuteOfDay < 0) bedtimeMinuteOfDay += 1440;
-          bedtimeMinuteOfDay = bedtimeMinuteOfDay % 1440;
-          const bH = Math.floor(bedtimeMinuteOfDay / 60);
-          const bM = bedtimeMinuteOfDay % 60;
-          tab2BedtimeClock.innerText = `${bH.toString().padStart(2, '0')}:${bM.toString().padStart(2, '0')}`;
-        }
+        const [wakeH, wakeM] = wakeTime.split(":").map(Number);
+        const wakeMinuteOfDay = (wakeH * 60) + wakeM;
+        const totalBedtimeMin = totalNeedMin + 15;
+        let bedtimeMinuteOfDay = wakeMinuteOfDay - totalBedtimeMin;
+        while (bedtimeMinuteOfDay < 0) bedtimeMinuteOfDay += 1440;
+        bedtimeMinuteOfDay = bedtimeMinuteOfDay % 1440;
+        const bH = Math.floor(bedtimeMinuteOfDay / 60);
+        const bM = bedtimeMinuteOfDay % 60;
+        tab2BedtimeClock.innerText = `${bH.toString().padStart(2, '0')}:${bM.toString().padStart(2, '0')}`;
       }
 
       // Update Tab 1
@@ -4804,37 +4871,25 @@
       if (sleepActualVal) sleepActualVal.innerText = `${actH}h ${actM.toString().padStart(2, '0')}m`;
       if (sleepNeedVal) sleepNeedVal.innerText = `${needH}h ${needM.toString().padStart(2, '0')}m`;
 
-      // Update Tab 5 Sleep Need Readout
-      const sleepReadout = document.getElementById("analytics-sleep-readout");
-      if (sleepReadout) {
-        const dCount = activeAnalyticsRange || 7;
-        sleepReadout.innerText = `Need: ${baseStr} | Window: ${dCount}d`;
-      }
+      // Update Tab 5 Graphs & Readouts with active settings
+      setGlobalTimeRange(activeTimeRange);
 
       // Update Sleep Simulator with active settings (wake time & baseline)
       const simSlider = document.getElementById("v2-sim-slider");
       if (simSlider) updateSleepSimulator(simSlider.value);
+
+      // Re-anchor Circadian Windows and Caffeine Clearance to active wake & bedtime targets
+      renderCircadianWindows(row.metrics_v2);
+      renderCaffeineClearance(row);
     }
 
     function populateSettingsUI() {
       const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-      const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = Boolean(val); };
 
       setVal("setting-max-hr", appSettings.max_hr);
-      setVal("setting-rhr-mode", appSettings.rhr_mode);
       setVal("setting-sleep-need", appSettings.sleep_need_min);
       setVal("setting-wake-time", appSettings.target_wake_time || "07:00");
       setVal("setting-debt-rate", appSettings.debt_payback_pct);
-
-      if (appSettings.habits) {
-        setChk("toggle-habit-alcohol", appSettings.habits.alcohol);
-        setChk("toggle-habit-party", appSettings.habits.party);
-        setChk("toggle-habit-late-meal", appSettings.habits.late_meal);
-        setChk("toggle-habit-any-caffeine", appSettings.habits.any_caffeine);
-        setChk("toggle-habit-late-caffeine", appSettings.habits.late_caffeine);
-        setChk("toggle-habit-screen", appSettings.habits.screen);
-        setChk("toggle-habit-travel", appSettings.habits.travel);
-      }
     }
 
     function openSettingsModal() {
@@ -4851,23 +4906,11 @@
 
     async function saveSettings() {
       const getVal = (id, def) => { const el = document.getElementById(id); return el ? el.value : def; };
-      const getChk = (id, def) => { const el = document.getElementById(id); return el ? el.checked : def; };
 
       appSettings.max_hr = Number(getVal("setting-max-hr", 202));
-      appSettings.rhr_mode = getVal("setting-rhr-mode", "dynamic");
       appSettings.sleep_need_min = Number(getVal("setting-sleep-need", 435));
       appSettings.target_wake_time = getVal("setting-wake-time", "07:00");
       appSettings.debt_payback_pct = Number(getVal("setting-debt-rate", 0.33));
-
-      appSettings.habits = {
-        alcohol: getChk("toggle-habit-alcohol", true),
-        party: getChk("toggle-habit-party", true),
-        late_meal: getChk("toggle-habit-late-meal", true),
-        any_caffeine: getChk("toggle-habit-any-caffeine", true),
-        late_caffeine: getChk("toggle-habit-late-caffeine", true),
-        screen: getChk("toggle-habit-screen", true),
-        travel: getChk("toggle-habit-travel", true),
-      };
 
       // 1. Immediately persist locally
       localStorage.setItem("augur_settings", JSON.stringify(appSettings));
@@ -5328,7 +5371,8 @@
           if (data && data.length > 0) {
             allDailyRecords = data;
             selectedDayOffset = 0;
-            populateUI(data[0]);
+            const fullRec = { ...data[0], history_records: data };
+            populateUI(fullRec);
           }
         } catch (err) {
           console.error("Supabase load error:", err);
@@ -5407,6 +5451,9 @@
           }
         }
       });
+      if (tabName === 'trends' || tabName === 'analytics') {
+        setGlobalTimeRange(activeTimeRange);
+      }
     }
 
     document.addEventListener("DOMContentLoaded", initAuth);

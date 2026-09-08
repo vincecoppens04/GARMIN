@@ -172,6 +172,13 @@ def _fetch_telemetry_payload(user_id=None, supabase=None):
     except Exception:
         latest["habit_correlations"] = []
 
+    # Promote recommended_bedtime and sleep_equation_str if present in metrics_v2
+    if latest.get("metrics_v2") and isinstance(latest["metrics_v2"], dict):
+        if not latest.get("recommended_bedtime") and "recommended_bedtime" in latest["metrics_v2"]:
+            latest["recommended_bedtime"] = latest["metrics_v2"]["recommended_bedtime"]
+        if not latest.get("sleep_equation_str") and "sleep_equation_str" in latest["metrics_v2"]:
+            latest["sleep_equation_str"] = latest["metrics_v2"]["sleep_equation_str"]
+
     # Attach history records (up to 90 days) for Tab 5 Analytics
     latest["history_records"] = records
 

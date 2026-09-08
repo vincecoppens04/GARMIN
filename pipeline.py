@@ -990,7 +990,7 @@ def calculate_social_jetlag(history: list[dict]) -> dict:
         "weekend_mean_str": rel_to_str(mean_weekend_rel)
     }
 
-def calculate_circadian_windows(wake_time_str: str = "07:00") -> list[dict]:
+def calculate_circadian_windows(wake_time_str: str = "07:00", bedtime_str: str | None = None) -> list[dict]:
     """
     Feature 7 (Tab 2): Personalized Chronotype & Circadian Performance Windows
     """
@@ -1005,6 +1005,19 @@ def calculate_circadian_windows(wake_time_str: str = "07:00") -> list[dict]:
         s = base + timedelta(minutes=start_min)
         e = base + timedelta(minutes=end_min)
         return f"{s.strftime('%H:%M')} – {e.strftime('%H:%M')}"
+
+    # Calculate caffeine cutoff directly anchored to lights-out bedtime: Bedtime - 10 hours
+    if bedtime_str:
+        try:
+            bh, bm = map(int, bedtime_str.split(":"))
+            bed_dt = datetime(2026, 1, 2 if bh < wh else 1, bh, bm)
+            caff_cutoff_dt = bed_dt - timedelta(hours=10)
+            caff_time_str = caff_cutoff_dt.strftime('%H:%M')
+        except Exception:
+            caff_time_str = (base + timedelta(hours=6)).strftime('%H:%M')
+    else:
+        # Fallback assuming ~16h waking day: wake + 6h = bedtime - 10h
+        caff_time_str = (base + timedelta(hours=6)).strftime('%H:%M')
 
     return [
         {
@@ -1031,7 +1044,7 @@ def calculate_circadian_windows(wake_time_str: str = "07:00") -> list[dict]:
         {
             "id": "caffeine",
             "name": "Caffeine Clearance Cutoff",
-            "time_window": (base + timedelta(minutes=570)).strftime('%H:%M'),
+            "time_window": caff_time_str,
             "directive": "Enforces ~10h clearance before lights out to prevent adenosine binding inhibition.",
             "color": "rose"
         },
@@ -2069,7 +2082,7 @@ def process_day(
     hrv_slope = calculate_hrv_trend_slope(hrv_raw)
     sleep_restoration = calculate_sleep_restoration_and_restlessness(daily_sleep, sleep_raw)
     social_jetlag = calculate_social_jetlag(history)
-    circadian_windows = calculate_circadian_windows(target_wake_time)
+    circadian_windows = calculate_circadian_windows(target_wake_time, bedtime_str)
     
     combined_7d = [{"day_strain": day_strain, "target_strain_max": target_strain_max}] + history[:6]
     chronic_debt = calculate_chronic_strain_debt(combined_7d)
@@ -2178,14 +2191,22 @@ def process_day(
     try:
         supabase.table("daily_summaries").upsert(summary_record, on_conflict="user_id,date").execute()
     except Exception as e:
-        print(f"  [Supabase Warning] Extended schema upsert deferred, saving core columns: {e}")
-        safe_record = {k: v for k, v in summary_record.items() if k not in (
-            "immune_strain_index", "immune_tier", "nocturnal_dip_pct", "sleep_curve_type",
-            "hrv_trend_slope", "restoration_pct", "restlessness_index", "social_jetlag_min",
-            "chronic_strain_debt", "alcohol_latency_hr", "stress_balance_ratio", "metrics_v2",
-            "recommended_bedtime", "sleep_equation_str"
-        )}
-        supabase.table("daily_summaries").upsert(safe_record, on_conflict="user_id,date").execute()
+        err_msg = str(e)
+        print(f"  [Supabase Warning] Primary schema upsert failed: {err_msg}")
+        # Tier 2: Strip unmigrated string columns (recommended_bedtime, sleep_equation_str) but PRESERVE all V2 metrics
+        clean_record = {k: v for k, v in summary_record.items() if k not in ("recommended_bedtime", "sleep_equation_str")}
+        try:
+            supabase.table("daily_summaries").upsert(clean_record, on_conflict="user_id,date").execute()
+            print("  [Supabase Info] Successfully upserted all Version 2 metrics (omitted unmigrated columns).")
+        except Exception as e2:
+            print(f"  [Supabase Warning] Extended schema upsert deferred, saving core columns: {e2}")
+            safe_record = {k: v for k, v in summary_record.items() if k not in (
+                "immune_strain_index", "immune_tier", "nocturnal_dip_pct", "sleep_curve_type",
+                "hrv_trend_slope", "restoration_pct", "restlessness_index", "social_jetlag_min",
+                "chronic_strain_debt", "alcohol_latency_hr", "stress_balance_ratio", "metrics_v2",
+                "recommended_bedtime", "sleep_equation_str"
+            )}
+            supabase.table("daily_summaries").upsert(safe_record, on_conflict="user_id,date").execute()
 
     # 11. Sync Activities with HR Recovery & Glycogen Depletion
     print("-> Syncing activities with metabolic & autonomic metrics...")

@@ -17,6 +17,8 @@ ADD COLUMN IF NOT EXISTS social_jetlag_min NUMERIC,
 ADD COLUMN IF NOT EXISTS chronic_strain_debt NUMERIC,
 ADD COLUMN IF NOT EXISTS alcohol_latency_hr NUMERIC,
 ADD COLUMN IF NOT EXISTS stress_balance_ratio NUMERIC,
+ADD COLUMN IF NOT EXISTS recommended_bedtime TEXT,
+ADD COLUMN IF NOT EXISTS sleep_equation_str TEXT,
 ADD COLUMN IF NOT EXISTS metrics_v2 JSONB DEFAULT '{}'::jsonb;
 
 -- 2. Extend activities table with HRR and Metabolic metrics
