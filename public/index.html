@@ -3216,6 +3216,10 @@
         const carbRefuel = act.carb_refuel_target_g != null ? act.carb_refuel_target_g : v2Act.carb_refuel_target_g;
         const sriMin = act.stress_recovery_min != null ? act.stress_recovery_min : v2Act.stress_recovery_min;
 
+        const hrrVal = hrr60 != null ? `-${hrr60} bpm` : (hrr120 != null ? `-${hrr120} bpm` : '-- bpm');
+        const hrrSub = hrr60 != null ? `/ 60s ${hrr120 != null ? `(-${hrr120} 2m)` : ''}` : (hrr120 != null ? '/ 120s' : '/ 60s');
+        const hasHrr = hrr60 != null || hrr120 != null;
+
         let iconSvg = '';
         if (type.includes("run")) {
           iconSvg = '<svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>';
@@ -3269,8 +3273,8 @@
               <div class="p-2 rounded-xl bg-augur-cardInner/80 border border-augur-border/60">
                 <div class="flex items-center justify-between"><span class="text-zinc-500 block text-[8px] uppercase">HR Recovery (HRR)</span><button onclick="showExplanation('hrr')" class="w-3.5 h-3.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white inline-flex items-center justify-center text-[8px] font-bold focus:outline-none" title="Explanation">?</button></div>
                 <div class="flex items-baseline space-x-1.5 mt-0.5">
-                  <span class="${hrr60 != null ? 'text-xs font-black text-augur-green' : 'text-xs font-black text-zinc-500'}">${hrr60 != null ? `-${hrr60} bpm` : '-- bpm'}</span>
-                  <span class="text-[8px] text-zinc-400">/ 60s ${hrr120 != null ? `(-${hrr120} 2m)` : ''}</span>
+                  <span class="${hasHrr ? 'text-xs font-black text-augur-green' : 'text-xs font-black text-zinc-500'}">${hrrVal}</span>
+                  <span class="text-[8px] text-zinc-400">${hrrSub}</span>
                 </div>
                 <span class="text-[8px] ${hrrBench ? 'text-augur-green' : 'text-zinc-500'} block truncate mt-0.5">${hrrBench || 'Awaiting HR Recovery'}</span>
               </div>

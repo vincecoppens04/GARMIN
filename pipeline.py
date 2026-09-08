@@ -1061,7 +1061,8 @@ def calculate_activity_metabolic_and_recovery(
     act: dict,
     max_hr: int = 202,
     rhr: int = 45,
-    stress_raw: dict | None = None
+    stress_raw: dict | None = None,
+    hr_raw: dict | None = None
 ) -> dict:
     """
     Features 9, 10, 11 (Tab 3): HR Recovery, Glycogen Depletion & Stress Recovery
@@ -1085,10 +1086,47 @@ def calculate_activity_metabolic_and_recovery(
     hrr_60s = act.get("heartRateRecovery") or act.get("hrr_60s")
     hrr_120s = act.get("hrr_120s")
 
-    if hrr_60s is not None:
-        if hrr_60s >= 25:
+    # If not explicitly recorded as a field, derive from optical HR stream
+    if hrr_60s is None and hr_raw and isinstance(hr_raw, dict):
+        pts = hr_raw.get("heartRateValues") or []
+        t_start = act.get("beginTimestamp")
+        if not t_start and act.get("startTimeGMT"):
+            try:
+                t_start = datetime.fromisoformat(act["startTimeGMT"].replace("Z", "+00:00")).timestamp() * 1000
+            except Exception:
+                pass
+        dur_s = float(act.get("elapsedDuration") or act.get("duration") or 0)
+        if t_start and dur_s and pts and avg_hr:
+            t_end = t_start + (dur_s * 1000)
+            # Find ending/peak HR in the final 3 minutes of exercise
+            pre_pts = [p for p in pts if (t_end - 180000) <= p[0] <= t_end and p[1] is not None]
+            end_hr = max([p[1] for p in pre_pts]) if pre_pts else peak_hr or avg_hr
+            
+            # Find post-workout HR points within 20s - 240s of stopping
+            post_pts = [p for p in pts if t_end < p[0] <= (t_end + 300000) and p[1] is not None]
+            
+            hr_60, hr_120 = None, None
+            for p in post_pts:
+                diff = (p[0] - t_end) / 1000.0
+                if 20 <= diff <= 90 and hr_60 is None:
+                    hr_60 = p[1]
+                if 70 <= diff <= 190 and hr_120 is None:
+                    hr_120 = p[1]
+            
+            if end_hr:
+                if hr_60 is not None:
+                    hrr_60s = max(0, int(round(end_hr - hr_60)))
+                if hr_120 is not None:
+                    hrr_120s = max(0, int(round(end_hr - hr_120)))
+                # If 60s wasn't sampled exactly at 60s but 120s was, approximate 60s drop as ~60% of 120s
+                if hrr_60s is None and hrr_120s is not None:
+                    hrr_60s = int(round(hrr_120s * 0.60))
+
+    if hrr_120s is not None or hrr_60s is not None:
+        score = hrr_120s if hrr_120s is not None else (hrr_60s * 1.6)
+        if score >= 30:
             hrr_bench = "Optimal (High Vagal Recovery)"
-        elif hrr_60s >= 15:
+        elif score >= 18:
             hrr_bench = "Moderate (Normal Reactivation)"
         else:
             hrr_bench = "Suppressed (Dehydration / CNS Fatigue)"
@@ -2232,7 +2270,7 @@ def process_day(
             )
 
             # Version 2 activity metrics
-            act_v2 = calculate_activity_metabolic_and_recovery(act, max_hr, today_rhr or 50, stress_raw)
+            act_v2 = calculate_activity_metabolic_and_recovery(act, max_hr, today_rhr or 50, stress_raw, hr_raw)
 
             act_record = {
                 "id": act_id,
