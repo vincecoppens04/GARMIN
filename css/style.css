@@ -1,0 +1,77 @@
+/* AUGUR Sports Science & Recovery Intelligence Design System */
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: #07080B;
+  color: #FFFFFF;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+header.app-header {
+  padding-top: max(14px, env(safe-area-inset-top));
+}
+
+nav.bottom-nav {
+  padding-top: 6px;
+  padding-bottom: max(6px, calc(env(safe-area-inset-bottom) - 16px));
+}
+
+/* Recovery SVG Circle smooth transition */
+#recovery-circle-bar {
+  transition: stroke-dashoffset 1.4s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.6s ease;
+}
+
+/* Glassmorphism & Card Aesthetics */
+.glass-card {
+  background: linear-gradient(180deg, rgba(20, 23, 32, 0.8) 0%, rgba(14, 16, 22, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Custom Sleek Scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Interactive Ripple & Glow Utilities */
+.glow-green {
+  box-shadow: 0 0 24px -4px rgba(34, 197, 94, 0.35);
+}
+
+.glow-yellow {
+  box-shadow: 0 0 24px -4px rgba(234, 179, 8, 0.35);
+}
+
+.glow-red {
+  box-shadow: 0 0 24px -4px rgba(239, 68, 68, 0.35);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 24px -4px rgba(6, 182, 212, 0.35);
+}

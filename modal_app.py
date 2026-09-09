@@ -19,10 +19,11 @@ image = (
         "garminconnect>=0.3.2",
         "curl_cffi>=0.7.0",
         "supabase>=2.0.0",
+        "httpx>=0.25.0",
         "python-dotenv>=1.0.0",
         "scipy>=1.10.0"
     )
-    .add_local_file("pipeline.py", remote_path="/root/pipeline.py")
+    .add_local_python_source("engine")
 )
 
 # 3. Mount Encrypted Secrets from Modal Vault
@@ -43,7 +44,7 @@ def _sync_and_backfill(garmin, supabase_tuple, lookback_days=7):
     fetches from Garmin and processes each day in strict chronological order (T-n -> T-1 -> T).
     Returns the summary for today.
     """
-    from pipeline import process_day
+    from engine import process_day
     from datetime import date, timedelta
 
     supabase, user_id = supabase_tuple
@@ -97,7 +98,7 @@ def _fetch_telemetry_payload(user_id=None, supabase=None):
     computing 30-day baseline envelopes for vitals, and packing activities, user baselines,
     and habit correlations into a complete telemetry JSON response.
     """
-    from pipeline import get_supabase_client
+    from engine import get_supabase_client
     if supabase is None or user_id is None:
         supabase, user_id = get_supabase_client()
 
@@ -167,7 +168,7 @@ def _fetch_telemetry_payload(user_id=None, supabase=None):
 
     # Fetch habit correlations for Tab 4
     try:
-        from pipeline import calculate_habit_correlations
+        from engine import calculate_habit_correlations
         latest["habit_correlations"] = calculate_habit_correlations(supabase, user_id)
     except Exception:
         latest["habit_correlations"] = []
@@ -189,11 +190,12 @@ def _fetch_telemetry_payload(user_id=None, supabase=None):
     secrets=[augur_secret], 
     volumes={TOKENSTORE_PATH: token_volume},
     schedule=modal.Cron("0 8 * * *", timezone="Europe/Brussels"), 
+    retries=modal.Retries(max_retries=3, backoff_coefficient=2.0, initial_delay=3.0),
     timeout=180
 )
 def morning_sync():
     """Notification 2 (08:00): Run pipeline, calculate readiness & dispatch briefing."""
-    from pipeline import notify_morning_readiness, get_garmin_client, get_supabase_client
+    from engine import notify_morning_readiness, get_garmin_client, get_supabase_client
     garmin = get_garmin_client()
     supabase, user_id = get_supabase_client()
     supabase_tuple = (supabase, user_id)
@@ -207,14 +209,14 @@ def morning_sync():
 @app.function(image=image, secrets=[augur_secret], schedule=modal.Cron("30 7 * * *", timezone="Europe/Brussels"))
 def morning_reminder():
     """Notification 1 (07:30): Prompt user to sync watch over Bluetooth."""
-    from pipeline import notify_morning_sync_reminder
+    from engine import notify_morning_sync_reminder
     print("[07:30 Cron] Dispatching Morning Sync Reminder to phone...")
     notify_morning_sync_reminder()
 
 @app.function(image=image, secrets=[augur_secret], schedule=modal.Cron("30 20 * * *", timezone="Europe/Brussels"))
 def evening_reminder():
     """Notification 3 (20:30): Prompt user to sync today's strain."""
-    from pipeline import notify_evening_sync_reminder
+    from engine import notify_evening_sync_reminder
     print("[20:30 Cron] Dispatching Evening Sync Reminder to phone...")
     notify_evening_sync_reminder()
 
@@ -223,11 +225,12 @@ def evening_reminder():
     secrets=[augur_secret], 
     volumes={TOKENSTORE_PATH: token_volume},
     schedule=modal.Cron("0 21 * * *", timezone="Europe/Brussels"), 
+    retries=modal.Retries(max_retries=3, backoff_coefficient=2.0, initial_delay=3.0),
     timeout=180
 )
 def evening_sync():
     """Notification 4 (21:00): Calculate bedtime prescription & dispatch wind-down with 2-day backfill."""
-    from pipeline import get_garmin_client, get_supabase_client, process_day, notify_evening_bedtime
+    from engine import get_garmin_client, get_supabase_client, process_day, notify_evening_bedtime
     from datetime import date
     today_str = date.today().isoformat()
     print(f"[21:00 Cron] Running Bedtime Engine for {today_str} with 2-day backfill...")
@@ -248,6 +251,25 @@ def evening_sync():
     image=image, 
     secrets=[augur_secret], 
     volumes={TOKENSTORE_PATH: token_volume},
+    retries=modal.Retries(max_retries=3, backoff_coefficient=2.0, initial_delay=2.0),
+    timeout=180
+)
+def run_pipeline_sync(lookback_days: int = 2):
+    """Internal runner that syncs Garmin and Supabase and returns the telemetry payload."""
+    from engine import get_garmin_client, get_supabase_client
+
+    garmin = get_garmin_client()
+    supabase, user_id = get_supabase_client()
+    supabase_tuple = (supabase, user_id)
+
+    _sync_and_backfill(garmin, supabase_tuple, lookback_days=lookback_days)
+    token_volume.commit()
+    return _fetch_telemetry_payload(user_id=user_id, supabase=supabase)
+
+@app.function(
+    image=image, 
+    secrets=[augur_secret], 
+    volumes={TOKENSTORE_PATH: token_volume},
     timeout=180
 )
 @modal.fastapi_endpoint(method="POST")
@@ -258,13 +280,14 @@ def sync_now():
     Reuses persistent OAuth tokens stored in garmin-tokens volume to avoid sign-in emails.
     Automatically checks the past 7 days and backfills any days missed if the watch was not synced.
     """
-    from pipeline import get_garmin_client, get_supabase_client
+    from engine import get_garmin_client, get_supabase_client
 
     garmin = get_garmin_client()
     supabase, user_id = get_supabase_client()
     supabase_tuple = (supabase, user_id)
 
     _sync_and_backfill(garmin, supabase_tuple, lookback_days=14)
+    token_volume.commit()
     return _fetch_telemetry_payload(user_id=user_id, supabase=supabase)
 
 @app.function(
@@ -279,7 +302,7 @@ def backfill_now(days: int = 14):
     Explicitly forces a full backfill of the past N days from Garmin Connect,
     re-computing all 20 Version 2 metrics and overwriting existing rows in Supabase.
     """
-    from pipeline import get_garmin_client, get_supabase_client, process_day
+    from engine import get_garmin_client, get_supabase_client, process_day
     from datetime import date, timedelta
     garmin = get_garmin_client()
     supabase, user_id = get_supabase_client()
@@ -312,7 +335,7 @@ def get_telemetry():
 @modal.fastapi_endpoint(method="POST")
 def log_habits(data: dict):
     """Logs yesterday's habits into Supabase habit_logs table"""
-    from pipeline import get_supabase_client
+    from engine import get_supabase_client
     supabase, user_id = get_supabase_client()
     row = {
         "user_id": user_id,
@@ -341,7 +364,7 @@ def log_habits(data: dict):
 def send_test_notification():
     """Triggers an immediate test push notification with today's live telemetry to the user's phone via OneSignal."""
     import os
-    from pipeline import get_supabase_client, send_phone_notification
+    from engine import get_supabase_client, send_phone_notification
 
     supabase, user_id = get_supabase_client()
     res = (
@@ -391,7 +414,7 @@ def send_test_notification():
 @modal.fastapi_endpoint(method="POST")
 def save_settings(data: dict):
     """Saves user physiological baselines (Max HR, Sleep Need, Wake Time, Debt Payback, etc.) into Supabase user_baselines table"""
-    from pipeline import get_supabase_client
+    from engine import get_supabase_client
     supabase, user_id = get_supabase_client()
     row = {
         "user_id": user_id,
@@ -416,3 +439,33 @@ def save_settings(data: dict):
             return {"status": "success", "data": res.data, "note": "fallback schema applied"}
         except Exception as inner_e:
             raise inner_e
+
+# =====================================================================
+# LOCAL ENTRYPOINT FOR TESTING ON MODAL WITHOUT DEPLOYING
+# =====================================================================
+
+@app.local_entrypoint()
+def main(action: str = "sync"):
+    """
+    Test the new engine on Modal serverless cloud using local branch code without deploying to production.
+    Usage:
+        modal run modal_app.py
+        modal run modal_app.py --action morning
+        modal run modal_app.py --action evening
+    """
+    print(f"🚀 Running ephemeral test on Modal cloud (action='{action}')...")
+    if action == "morning":
+        morning_sync.remote()
+        print("✓ Morning sync completed successfully on Modal!")
+    elif action == "evening":
+        evening_sync.remote()
+        print("✓ Evening sync completed successfully on Modal!")
+    else:
+        res = run_pipeline_sync.remote(lookback_days=2)
+        print("✓ Sync executed successfully on Modal cloud!")
+        print(f"  Record Date : {res.get('date')}")
+        print(f"  Recovery    : {res.get('recovery_score')}% ({res.get('recovery_driver')})")
+        print(f"  Day Strain  : {res.get('day_strain')}")
+        print(f"  HRV RMSSD   : {res.get('hrv_rmssd')} ms")
+        print(f"  Bedtime     : {res.get('bedtime')}")
+
