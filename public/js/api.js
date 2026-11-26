@@ -24,8 +24,8 @@ export function getSupabaseClient() {
 
 export async function initAuth(onAuthSuccess, onAuthRequired) {
   if (!supabaseClient) {
-    console.warn("Supabase client not loaded, opening app directly");
-    onAuthSuccess({ email: "vincecoppens04" });
+    console.warn("Supabase client not loaded; authentication unavailable");
+    onAuthRequired();
     return;
   }
 
@@ -68,9 +68,27 @@ export async function signOutUser() {
   state.user = null;
 }
 
+// Returns headers carrying the signed-in user's Supabase access token.
+// The Modal backend verifies it (X-Augur-Token) before serving or writing anything.
+export async function authHeaders(extra = {}) {
+  const headers = { ...extra };
+  try {
+    const client = getSupabaseClient();
+    if (client) {
+      const { data: { session } } = await client.auth.getSession();
+      if (session && session.access_token) {
+        headers["X-Augur-Token"] = session.access_token;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not read auth session:", err);
+  }
+  return headers;
+}
+
 export async function fetchTelemetryFromCloud() {
   try {
-    const res = await fetch(MODAL_READ_URL);
+    const res = await fetch(MODAL_READ_URL, { headers: await authHeaders() });
     if (res.ok) {
       const row = await res.json();
       if (row && (row.recovery_score != null || row.recovery != null)) {
@@ -105,7 +123,7 @@ export async function fetchTelemetryFromCloud() {
 export async function triggerCloudSync() {
   const res = await fetch(MODAL_SYNC_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" }
+    headers: await authHeaders({ "Content-Type": "application/json" })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return await res.json();
@@ -114,7 +132,7 @@ export async function triggerCloudSync() {
 export async function saveHabitLog(habitPayload) {
   const res = await fetch(MODAL_HABITS_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(habitPayload)
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -124,7 +142,7 @@ export async function saveHabitLog(habitPayload) {
 export async function saveSettingsToCloud(settingsPayload) {
   const res = await fetch(MODAL_SETTINGS_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(settingsPayload)
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -134,7 +152,7 @@ export async function saveSettingsToCloud(settingsPayload) {
 export async function sendTestPush() {
   const res = await fetch(MODAL_TEST_NOTIF_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" }
+    headers: await authHeaders({ "Content-Type": "application/json" })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return await res.json();

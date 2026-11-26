@@ -34,6 +34,61 @@ token_volume = modal.Volume.from_name("garmin-tokens", create_if_missing=True)
 TOKENSTORE_PATH = "/root/.garminconnect"
 
 # =====================================================================
+# AUTHENTICATION (Supabase JWT sent by the PWA in the X-Augur-Token header)
+# =====================================================================
+# A custom header is used (not "Authorization") because browsers do not
+# cover "Authorization" with a wildcard Access-Control-Allow-Headers.
+
+try:
+    from fastapi import Header, HTTPException
+except ImportError:  # fastapi is only needed inside the Modal container
+    class HTTPException(Exception):
+        def __init__(self, status_code=500, detail=""):
+            super().__init__(detail)
+            self.status_code = status_code
+
+    def Header(default=None, **_kwargs):
+        return default
+
+_TOKEN_CACHE: dict = {}
+_TOKEN_TTL_SEC = 300
+
+
+def require_auth(token):
+    """
+    Verifies a Supabase access token and checks that it belongs to the single
+    AUGUR account (APP_USER_EMAIL). Raises HTTPException(401/403) otherwise.
+    """
+    import os
+    import time
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing authentication token")
+
+    now = time.time()
+    if _TOKEN_CACHE.get(token, 0) > now:
+        return
+
+    try:
+        from supabase import create_client
+        client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_ANON_KEY"])
+        res = client.auth.get_user(token)
+        user = getattr(res, "user", None)
+    except Exception as e:
+        print(f"[Auth] Token verification failed: {type(e).__name__}")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    allowed = (os.environ.get("APP_USER_EMAIL") or "").strip().lower()
+    email = ((user.email if user else "") or "").strip().lower()
+    if not user or not allowed or email != allowed:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    # Drop expired entries so the cache cannot grow without bound
+    for k in [k for k, exp in _TOKEN_CACHE.items() if exp <= now]:
+        _TOKEN_CACHE.pop(k, None)
+    _TOKEN_CACHE[token] = now + _TOKEN_TTL_SEC
+
+# =====================================================================
 # CORE ENGINE HELPERS
 # =====================================================================
 
@@ -273,13 +328,14 @@ def run_pipeline_sync(lookback_days: int = 2):
     timeout=180
 )
 @modal.fastapi_endpoint(method="POST")
-def sync_now():
+def sync_now(x_augur_token: str = Header(None)):
     """
     Public HTTPS Webhook endpoint triggered when tapping 'Sync Now' in AUGUR on iPhone.
     Fetches fresh Garmin endpoints, updates Supabase, and returns latest telemetry JSON.
     Reuses persistent OAuth tokens stored in garmin-tokens volume to avoid sign-in emails.
     Automatically checks the past 7 days and backfills any days missed if the watch was not synced.
     """
+    require_auth(x_augur_token)
     from engine import get_garmin_client, get_supabase_client
 
     garmin = get_garmin_client()
@@ -297,11 +353,12 @@ def sync_now():
     timeout=600
 )
 @modal.fastapi_endpoint(method="POST")
-def backfill_now(days: int = 14):
+def backfill_now(days: int = 14, x_augur_token: str = Header(None)):
     """
     Explicitly forces a full backfill of the past N days from Garmin Connect,
     re-computing all 20 Version 2 metrics and overwriting existing rows in Supabase.
     """
+    require_auth(x_augur_token)
     from engine import get_garmin_client, get_supabase_client, process_day
     from datetime import date, timedelta
     garmin = get_garmin_client()
@@ -323,18 +380,20 @@ def backfill_now(days: int = 14):
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="GET")
-def get_telemetry():
+def get_telemetry(x_augur_token: str = Header(None)):
     """
     Public fast-read HTTPS endpoint for the AUGUR PWA frontend.
     Fetches the latest authenticated daily summary from Supabase and returns JSON,
     including rolling 30-day baseline envelopes for HRV, RHR, Respiration, and SpO2.
     """
+    require_auth(x_augur_token)
     return _fetch_telemetry_payload()
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="POST")
-def log_habits(data: dict):
+def log_habits(data: dict, x_augur_token: str = Header(None)):
     """Logs yesterday's habits into Supabase habit_logs table"""
+    require_auth(x_augur_token)
     from engine import get_supabase_client
     supabase, user_id = get_supabase_client()
     row = {
@@ -361,8 +420,9 @@ def log_habits(data: dict):
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="POST")
-def send_test_notification():
+def send_test_notification(x_augur_token: str = Header(None)):
     """Triggers an immediate test push notification with today's live telemetry to the user's phone via OneSignal."""
+    require_auth(x_augur_token)
     import os
     from engine import get_supabase_client, send_phone_notification
 
@@ -412,8 +472,9 @@ def send_test_notification():
 
 @app.function(image=image, secrets=[augur_secret], timeout=30)
 @modal.fastapi_endpoint(method="POST")
-def save_settings(data: dict):
+def save_settings(data: dict, x_augur_token: str = Header(None)):
     """Saves user physiological baselines (Max HR, Sleep Need, Wake Time, Debt Payback, etc.) into Supabase user_baselines table"""
+    require_auth(x_augur_token)
     from engine import get_supabase_client
     supabase, user_id = get_supabase_client()
     row = {

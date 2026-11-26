@@ -153,37 +153,23 @@ export async function handleLogin(e) {
 export async function initAuth() {
   loadSettings();
 
-  const isLocal = (
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" ||
-     window.location.hostname === "127.0.0.1" ||
-     window.location.protocol === "file:")
-  );
-
   const client = getSupabaseClient ? getSupabaseClient() : null;
   if (!client) {
-    console.warn("Supabase client not loaded, opening app directly");
-    onAuthenticated({ email: "vincecoppens04" });
+    console.warn("Supabase client not loaded; authentication unavailable");
+    showLoginOverlay();
     return;
   }
 
   try {
-    const { data: { session }, error } = await client.auth.getSession();
+    const { data: { session } } = await client.auth.getSession();
     if (session && session.user) {
       onAuthenticated(session.user);
-    } else if (isLocal) {
-      console.info("Local environment detected: auto-authenticating developer session");
-      onAuthenticated({ email: "vincecoppens04" });
     } else {
       showLoginOverlay();
     }
   } catch (err) {
     console.warn("Session retrieval exception:", err);
-    if (isLocal) {
-      onAuthenticated({ email: "vincecoppens04" });
-    } else {
-      showLoginOverlay();
-    }
+    showLoginOverlay();
   }
 
   try {
@@ -463,7 +449,6 @@ window.adjustCaffeineCups = adjustCaffeineCups;
 window.onCaffeineHourChanged = onCaffeineHourChanged;
 window.updateSleepSimulator = updateSleepSimulator;
 window.handleLogin = handleLogin;
-window.bypassLoginForDev = () => onAuthenticated({ email: "vincecoppens04" });
 window.updatePushStatusUI = updatePushStatusUI;
 
 // Initialize on DOM ready or immediately if DOM is already parsed

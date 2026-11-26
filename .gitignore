@@ -26,3 +26,9 @@ Thumbs.db
 .vscode/
 .idea/
 .gemini/
+
+# Large local media / keys (never commit)
+augur.key
+*.key
+AUGUR.mp4
+*.mp4
